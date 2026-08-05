@@ -14,7 +14,7 @@ public class ShowSeatMapper {
                 .showId(request.getShowId())
                 .seatId(request.getSeatId())
                 .status(SeatStatus.AVAILABLE)
-                .version(0L)
+           //     .version(0L)
                 .build();
     }
 
@@ -25,7 +25,7 @@ public class ShowSeatMapper {
                 .showId(showSeat.getShowId())
                 .seatId(showSeat.getSeatId())
                 .status(showSeat.getStatus())
-                .version(showSeat.getVersion())
+           //     .version(showSeat.getVersion())
                 .build();
     }
 }
