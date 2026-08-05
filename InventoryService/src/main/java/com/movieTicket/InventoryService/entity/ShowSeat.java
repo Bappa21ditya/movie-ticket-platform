@@ -36,6 +36,6 @@ public class ShowSeat {
     @Column(nullable = false)
     private SeatStatus status;
 
-    @Version
-    private Long version;
+//    @Version
+//    private Long version;
 }

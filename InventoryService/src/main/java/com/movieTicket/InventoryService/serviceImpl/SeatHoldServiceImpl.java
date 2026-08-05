@@ -1,14 +1,12 @@
 package com.movieTicket.InventoryService.serviceImpl;
 import com.movieTicket.InventoryService.dtos.CreateSeatHoldRequest;
-import com.movieTicket.InventoryService.dtos.CreateShowSeatRequest;
 import com.movieTicket.InventoryService.dtos.SeatHoldResponse;
-import com.movieTicket.InventoryService.dtos.ShowSeatResponse;
 import com.movieTicket.InventoryService.entity.SeatHold;
 import com.movieTicket.InventoryService.entity.ShowSeat;
 import com.movieTicket.InventoryService.enums.SeatStatus;
 import com.movieTicket.InventoryService.exceptions.ResourceNotFoundException;
+import com.movieTicket.InventoryService.exceptions.SeatUnavailableException;
 import com.movieTicket.InventoryService.mapper.SeatHoldMapper;
-import com.movieTicket.InventoryService.mapper.ShowSeatMapper;
 import com.movieTicket.InventoryService.repos.SeatHoldRepository;
 import com.movieTicket.InventoryService.repos.ShowSeatRepository;
 import com.movieTicket.InventoryService.services.SeatHoldService;
@@ -25,10 +23,31 @@ public class SeatHoldServiceImpl  implements SeatHoldService {
 
     private final SeatHoldRepository seatHoldRepository;
     private final SeatHoldMapper seatHoldMapper;
+    private final ShowSeatRepository showSeatRepository;
 
     @Override
     public SeatHoldResponse createHold(
             CreateSeatHoldRequest request) {
+
+//        ShowSeat showSeat = showSeatRepository.findById(request.getShowSeatId())
+//                .orElseThrow(() ->
+//                        new ResourceNotFoundException(
+//                                "Show seat not found: " + request.getShowSeatId()));
+
+        ShowSeat showSeat = showSeatRepository
+                .findByIdForUpdate(request.getShowSeatId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Show seat not found"));
+
+        if (showSeat.getStatus() != SeatStatus.AVAILABLE) {
+            throw new SeatUnavailableException(
+                    "Seat is not available");
+        }
+
+        showSeat.setStatus(SeatStatus.HELD);
+
+        showSeatRepository.save(showSeat);
 
         SeatHold hold = seatHoldMapper.toEntity(request);
 
