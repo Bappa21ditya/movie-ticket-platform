@@ -36,6 +36,7 @@ public class ShowSeat {
     @Column(nullable = false)
     private SeatStatus status;
 
-//    @Version
-//    private Long version;
+  //  @Version
+   // private Long version;
+    // ============================================================ // OPTIMISTIC LOCKING // ============================================================ // // Hibernate automatically includes this version in UPDATEs. // // Example: // // User A reads: // version = 10 // // User B reads: // version = 10 // // User A updates: // version 10 → 11 SUCCESS // // User B tries: // UPDATE ... WHERE version = 10 // // But the database now contains version = 11. // // Therefore User B's UPDATE affects 0 rows, // and Hibernate throws an OptimisticLockException. // // ============================================================
 }
