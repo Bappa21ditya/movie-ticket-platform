@@ -1,13 +1,9 @@
 package com.movieTicket.InventoryService.serviceImpl;
-import com.movieTicket.InventoryService.dtos.CreateSeatHoldRequest;
 import com.movieTicket.InventoryService.dtos.CreateShowSeatRequest;
-import com.movieTicket.InventoryService.dtos.SeatHoldResponse;
 import com.movieTicket.InventoryService.dtos.ShowSeatResponse;
-import com.movieTicket.InventoryService.entity.SeatHold;
 import com.movieTicket.InventoryService.entity.ShowSeat;
 import com.movieTicket.InventoryService.enums.SeatStatus;
 import com.movieTicket.InventoryService.exceptions.ResourceNotFoundException;
-import com.movieTicket.InventoryService.mapper.SeatHoldMapper;
 import com.movieTicket.InventoryService.mapper.ShowSeatMapper;
 import com.movieTicket.InventoryService.repos.ShowSeatRepository;
 import com.movieTicket.InventoryService.services.ShowSeatService;
