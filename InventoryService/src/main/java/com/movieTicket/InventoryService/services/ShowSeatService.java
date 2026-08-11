@@ -17,4 +17,6 @@ public interface ShowSeatService {
     List<ShowSeatResponse> getShowSeatsByShow(Long showId);
 
     List<ShowSeatResponse> getAvailableSeats(Long showId);
+
+     boolean holdSeat(Long seatId) ;
 }
