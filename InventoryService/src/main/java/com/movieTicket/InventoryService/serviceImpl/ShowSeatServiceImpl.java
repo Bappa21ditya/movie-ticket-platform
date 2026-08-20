@@ -111,24 +111,33 @@ public class ShowSeatServiceImpl implements ShowSeatService {
     //
     // ============================================================
 
-    @Override
-    @Transactional
-    public boolean holdSeat(Long seatId) {
+//    @Override
+//    @Transactional
+//    public boolean holdSeat(Long seatId) {
+//
+//        int updatedRows =
+//                showSeatRepository.holdSeat(seatId);
+//
+//        // Exactly one row means:
+//        // the seat was AVAILABLE and we successfully changed it to HELD.
+//        if (updatedRows == 1) {
+//            return true;
+//        }
+//
+//        // Zero rows means:
+//        // the WHERE condition was not satisfied.
+//        // Most commonly, another user already acquired the seat.
+//        return false;
+//    }
+@Override
+@Transactional
+public boolean holdSeat(Long showSeatId) {
+    int updatedRows = showSeatRepository.holdSeat(showSeatId);
 
-        int updatedRows =
-                showSeatRepository.holdSeat(seatId);
-
-        // Exactly one row means:
-        // the seat was AVAILABLE and we successfully changed it to HELD.
-        if (updatedRows == 1) {
-            return true;
-        }
-
-        // Zero rows means:
-        // the WHERE condition was not satisfied.
-        // Most commonly, another user already acquired the seat.
-        return false;
-    }
+    // Exactly 1 row means:
+    // The show seat was AVAILABLE and successfully changed to HELD.
+    return updatedRows == 1;
+}
 }
 
 //@Service

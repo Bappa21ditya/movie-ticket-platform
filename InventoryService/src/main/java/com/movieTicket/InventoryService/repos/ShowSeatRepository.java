@@ -32,12 +32,13 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat,Long> {
             Long showId,
             SeatStatus status);
 
-    @Modifying
-    @Query("""
-    UPDATE ShowSeat s
-    SET s.status = 'HELD'
-    WHERE s.id = :seatId
-      AND s.status = 'AVAILABLE'
-""")
-    int holdSeat(@Param("seatId") Long seatId);
+@Modifying
+@Query(value = """
+    UPDATE inventory_db.show_seats
+    SET status = 'HELD'
+    WHERE show_seat_id = :showSeatId
+      AND status = 'AVAILABLE'
+""", nativeQuery = true)
+int holdSeat(@Param("showSeatId") Long showSeatId);
+
 }
