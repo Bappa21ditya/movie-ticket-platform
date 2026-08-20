@@ -49,4 +49,14 @@ public class ShowSeatController {
         return ResponseEntity.ok(
                 showSeatService.getAvailableSeats(showId));
     }
+    @PostMapping("/{showSeatId}/hold")
+    public ResponseEntity<Boolean> holdSeat(@PathVariable Long showSeatId) {
+        boolean success = showSeatService.holdSeat(showSeatId);
+        if (success) {
+            return ResponseEntity.ok(true);
+        } else {
+            // Return 409 Conflict if the seat was already held/booked by another request
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(false);
+        }
+    }
 }
