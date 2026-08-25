@@ -3,6 +3,7 @@ package com.movieTicket.InventoryService.repos;
 import com.movieTicket.InventoryService.entity.ShowSeat;
 import com.movieTicket.InventoryService.enums.SeatStatus;
 import jakarta.persistence.LockModeType;
+import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -32,12 +33,34 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat,Long> {
             Long showId,
             SeatStatus status);
 
+@Modifying
+@Query(value = """
+    UPDATE inventory_db.show_seats
+    SET status = 'HELD'
+    WHERE show_seat_id = :showSeatId
+      AND status = 'AVAILABLE'
+""", nativeQuery = true)
+int holdSeat(@Param("showSeatId") Long showSeatId);
+
     @Modifying
-    @Query("""
-    UPDATE ShowSeat s
-    SET s.status = 'HELD'
-    WHERE s.id = :seatId
-      AND s.status = 'AVAILABLE'
-""")
-    int holdSeat(@Param("seatId") Long seatId);
+    @Transactional
+    @Query(value = """
+    UPDATE inventory_db.show_seats
+    SET status = 'AVAILABLE'
+    WHERE show_seat_id = :showSeatId
+    """, nativeQuery = true)
+    void resetSeat(@Param("showSeatId") Long showSeatId);
+
+
+    @Modifying
+    @Query(value = """
+    UPDATE inventory_db.show_seats
+    SET status = 'HELD'
+    WHERE show_seat_id = :showSeatId
+      AND status = 'AVAILABLE'
+    """, nativeQuery = true)
+    int holdSeatIfAvailable(
+            @Param("showSeatId") Long showSeatId
+    );
+
 }

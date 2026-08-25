@@ -1,10 +1,15 @@
 package com.movieTicket.InventoryService.serviceImpl;
+import com.movieTicket.InventoryService.dtos.CreateSeatHoldRequest;
 import com.movieTicket.InventoryService.dtos.CreateShowSeatRequest;
+import com.movieTicket.InventoryService.dtos.SeatHoldResponse;
 import com.movieTicket.InventoryService.dtos.ShowSeatResponse;
+import com.movieTicket.InventoryService.entity.SeatHold;
 import com.movieTicket.InventoryService.entity.ShowSeat;
 import com.movieTicket.InventoryService.enums.SeatStatus;
 import com.movieTicket.InventoryService.exceptions.ResourceNotFoundException;
+import com.movieTicket.InventoryService.mapper.SeatHoldMapper;
 import com.movieTicket.InventoryService.mapper.ShowSeatMapper;
+import com.movieTicket.InventoryService.reddis.SeatLock;
 import com.movieTicket.InventoryService.repos.ShowSeatRepository;
 import com.movieTicket.InventoryService.services.ShowSeatService;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 @Service
@@ -21,6 +27,8 @@ public class ShowSeatServiceImpl implements ShowSeatService {
 
     private final ShowSeatRepository showSeatRepository;
     private final ShowSeatMapper showSeatMapper;
+    private final SeatLock redisSeatLock;
+
 
 
     // ============================================================
@@ -111,23 +119,78 @@ public class ShowSeatServiceImpl implements ShowSeatService {
     //
     // ============================================================
 
+//    @Override
+//    @Transactional
+//    public boolean holdSeat(Long seatId) {
+//
+//        int updatedRows =
+//                showSeatRepository.holdSeat(seatId);
+//
+//        // Exactly one row means:
+//        // the seat was AVAILABLE and we successfully changed it to HELD.
+//        if (updatedRows == 1) {
+//            return true;
+//        }
+//
+//        // Zero rows means:
+//        // the WHERE condition was not satisfied.
+//        // Most commonly, another user already acquired the seat.
+//        return false;
+//    }
+
+    // before reddis
+//@Override
+//@Transactional
+//public boolean holdSeat(Long showSeatId) {
+//    int updatedRows = showSeatRepository.holdSeat(showSeatId);
+//
+//    // Exactly 1 row means:
+//    // The show seat was AVAILABLE and successfully changed to HELD.
+//    return updatedRows == 1;
+//}
+
+    // reddis
     @Override
     @Transactional
-    public boolean holdSeat(Long seatId) {
+    public boolean holdSeat(Long showSeatId) {
+        String token = UUID.randomUUID().toString();
 
-        int updatedRows =
-                showSeatRepository.holdSeat(seatId);
+        boolean acquired =
+                redisSeatLock.tryLock(showSeatId, token);
 
-        // Exactly one row means:
-        // the seat was AVAILABLE and we successfully changed it to HELD.
-        if (updatedRows == 1) {
-            return true;
+        System.out.println(
+                Thread.currentThread().getName()
+                        + " | token=" + token
+                        + " | lock=" + acquired
+        );
+
+        if (!acquired) {
+            return false;
         }
 
-        // Zero rows means:
-        // the WHERE condition was not satisfied.
-        // Most commonly, another user already acquired the seat.
-        return false;
+        try {
+
+            int updatedRows =
+                    showSeatRepository.holdSeat(showSeatId);
+
+            System.out.println(
+                    Thread.currentThread().getName()
+                            + " | token=" + token
+                            + " | updatedRows=" + updatedRows
+            );
+
+            return updatedRows == 1;
+
+        } finally {
+
+            redisSeatLock.unlock(showSeatId, token);
+
+            System.out.println(
+                    Thread.currentThread().getName()
+                            + " | token=" + token
+                            + " | lock released"
+            );
+        }
     }
 }
 
