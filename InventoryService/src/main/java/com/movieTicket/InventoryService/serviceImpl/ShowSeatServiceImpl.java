@@ -12,7 +12,10 @@ import com.movieTicket.InventoryService.mapper.ShowSeatMapper;
 import com.movieTicket.InventoryService.reddis.SeatLock;
 import com.movieTicket.InventoryService.repos.ShowSeatRepository;
 import com.movieTicket.InventoryService.services.ShowSeatService;
+import io.lettuce.core.RedisConnectionException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,6 +89,14 @@ public class ShowSeatServiceImpl implements ShowSeatService {
                 .toList();
     }
 
+    @Transactional
+    public boolean holdSeatInDatabase(Long showSeatId) {
+
+        int updatedRows =
+                showSeatRepository.holdSeat(showSeatId);
+
+        return updatedRows == 1;
+    }
 
     // ============================================================
     // ATOMIC CONDITIONAL UPDATE
@@ -151,9 +162,12 @@ public class ShowSeatServiceImpl implements ShowSeatService {
 
     // reddis
     @Override
-    @Transactional
     public boolean holdSeat(Long showSeatId) {
         String token = UUID.randomUUID().toString();
+
+        try {
+
+        // 1. try redis lock
 
         boolean acquired =
                 redisSeatLock.tryLock(showSeatId, token);
@@ -163,26 +177,18 @@ public class ShowSeatServiceImpl implements ShowSeatService {
                         + " | token=" + token
                         + " | lock=" + acquired
         );
-
+           // 2. Redis is healthy, but another request owns the lock
         if (!acquired) {
             return false;
         }
 
         try {
 
-            int updatedRows =
-                    showSeatRepository.holdSeat(showSeatId);
-
-            System.out.println(
-                    Thread.currentThread().getName()
-                            + " | token=" + token
-                            + " | updatedRows=" + updatedRows
-            );
-
-            return updatedRows == 1;
+        ///  3. Redis lock acquired go to PostgreSQL
+          return   holdSeatInDatabase(showSeatId);
 
         } finally {
-
+            // 4.Release Redis lock
             redisSeatLock.unlock(showSeatId, token);
 
             System.out.println(
@@ -191,6 +197,21 @@ public class ShowSeatServiceImpl implements ShowSeatService {
                             + " | lock released"
             );
         }
+        }
+        catch (RedisConnectionFailureException
+               | RedisSystemException e) {
+
+
+                // 5. Redis itself is unavailable  FALLBACK TO POSTGRESQL
+
+
+                System.out.println(
+                        "Redis unavailable. "
+                                + "Falling back to PostgreSQL."
+                );
+
+            return holdSeatInDatabase(showSeatId);
+            }
     }
 }
 

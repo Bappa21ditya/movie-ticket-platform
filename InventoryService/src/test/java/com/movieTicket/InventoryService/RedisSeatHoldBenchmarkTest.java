@@ -17,7 +17,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.springframework.boot.test.context.SpringBootTest;
+
+
+
+
 
 @SpringBootTest
 public class RedisSeatHoldBenchmarkTest {
@@ -28,7 +31,7 @@ public class RedisSeatHoldBenchmarkTest {
     private ShowSeatRepository showSeatRepository;
 
     private static final Long SHOW_SEAT_ID = 1L;
-    private static final int TOTAL_REQUESTS = 10_000;
+    private static final int TOTAL_REQUESTS = 10000;
     private static final int THREAD_POOL_SIZE = 100;
 
     @Test
@@ -67,24 +70,51 @@ public class RedisSeatHoldBenchmarkTest {
                         long start =
                                 System.nanoTime();
 
-                        boolean success =
-                                showSeatService
-                                        .holdSeat(SHOW_SEAT_ID);
+                        try {
 
-                        long end =
-                                System.nanoTime();
+                            boolean success =
+                                    showSeatService
+                                            .holdSeat(
+                                                    SHOW_SEAT_ID
+                                            );
 
-                        double latencyMs =
-                                (end - start) / 1_000_000.0;
+                            long end =
+                                    System.nanoTime();
 
-                        return new Result(
-                                success,
-                                latencyMs
-                        );
+                            double latencyMs =
+                                    (end - start)
+                                            / 1_000_000.0;
+
+                            return new Result(
+                                    success,
+                                    latencyMs,
+                                    false
+                            );
+
+                        } catch (Exception e) {
+
+                            long end =
+                                    System.nanoTime();
+
+                            double latencyMs =
+                                    (end - start)
+                                            / 1_000_000.0;
+
+                            System.out.println(
+                                    "REQUEST ERROR: "
+                                            + e.getClass()
+                                            .getSimpleName()
+                            );
+
+                            return new Result(
+                                    false,
+                                    latencyMs,
+                                    true
+                            );
+                        }
                     })
             );
         }
-
         // ----------------------------------------
         // 4. Start all requests
         // ----------------------------------------
@@ -100,6 +130,7 @@ public class RedisSeatHoldBenchmarkTest {
 
         int successful = 0;
         int rejected = 0;
+        int errors = 0;
 
         List<Double> latencies =
                 new ArrayList<>(TOTAL_REQUESTS);
@@ -108,7 +139,11 @@ public class RedisSeatHoldBenchmarkTest {
 
             Result result = future.get();
 
-            if (result.success()) {
+            if (result.error()) {
+
+                errors++;
+
+            } else if (result.success()) {
                 successful++;
             } else {
                 rejected++;
@@ -152,6 +187,7 @@ public class RedisSeatHoldBenchmarkTest {
         // ----------------------------------------
         // 7. Print results
         // ----------------------------------------
+        System.out.println("Errors         : " + errors);
 
         System.out.println();
         System.out.println(
@@ -209,6 +245,11 @@ public class RedisSeatHoldBenchmarkTest {
                 rejected,
                 "All other requests must fail"
         );
+        assertEquals(
+                0,
+                errors,
+                "There must be no unexpected errors"
+        );
     }
 
     private double percentile(
@@ -228,7 +269,31 @@ public class RedisSeatHoldBenchmarkTest {
 
     private record Result(
             boolean success,
-            double latencyMs
+            double latencyMs,
+            boolean error
     ) {
     }
+
+
+    @Test
+    void testRedisFailureFallback() {
+
+        showSeatRepository.resetSeat(SHOW_SEAT_ID);
+
+        System.out.println("Starting fallback test...");
+
+        long start = System.currentTimeMillis();
+
+        boolean result =
+                showSeatService.holdSeat(SHOW_SEAT_ID);
+
+        long end = System.currentTimeMillis();
+
+        System.out.println("Result   = " + result);
+        System.out.println("Time     = " + (end - start) + " ms");
+
+    }
+
 }
+
+

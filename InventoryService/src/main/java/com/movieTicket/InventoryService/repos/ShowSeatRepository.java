@@ -52,15 +52,4 @@ int holdSeat(@Param("showSeatId") Long showSeatId);
     void resetSeat(@Param("showSeatId") Long showSeatId);
 
 
-    @Modifying
-    @Query(value = """
-    UPDATE inventory_db.show_seats
-    SET status = 'HELD'
-    WHERE show_seat_id = :showSeatId
-      AND status = 'AVAILABLE'
-    """, nativeQuery = true)
-    int holdSeatIfAvailable(
-            @Param("showSeatId") Long showSeatId
-    );
-
 }
