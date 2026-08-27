@@ -7,6 +7,7 @@ import com.movieTicket.InventoryService.enums.HoldStatus;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Component
 public class SeatHoldMapper {
@@ -18,7 +19,7 @@ public class SeatHoldMapper {
                 .userId(request.getUserId())
                 .expiresAt(request.getExpiresAt())
                 .status(HoldStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
+                .createdAt(OffsetDateTime.now())
                 .build();
     }
 

@@ -12,8 +12,9 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateBookingSeatRequest {
+
     @NotNull
-    private UUID seatId;
+    private Long showSeatId;
 
     @NotBlank
     private String seatType;

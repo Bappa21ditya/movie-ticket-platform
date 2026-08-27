@@ -1,6 +1,5 @@
-package com.movieTicket.InventoryService.dtos;
+package com.cineverse.booking.dto.sagaClient;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -13,15 +12,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateSeatHoldRequest {
-    @NotNull
+
     private Long showSeatId;
 
-    @NotNull
     private UUID bookingId;
 
-    @NotNull
     private UUID userId;
 
-    @NotNull
     private OffsetDateTime expiresAt;
 }
+

@@ -6,7 +6,6 @@ spring:
     name: booking-service
 
 
-
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres?currentSchema=booking_db
     username: postgres
@@ -16,7 +15,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     show-sql: true
     open-in-view: false
     properties:
@@ -27,5 +26,10 @@ logging:
   level:
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
+
+
+inventory:
+  service:
+    url: http://localhost:8081
 
 

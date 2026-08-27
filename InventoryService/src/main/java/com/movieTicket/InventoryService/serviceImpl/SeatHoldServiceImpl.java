@@ -10,6 +10,7 @@ import com.movieTicket.InventoryService.mapper.SeatHoldMapper;
 import com.movieTicket.InventoryService.repos.SeatHoldRepository;
 import com.movieTicket.InventoryService.repos.ShowSeatRepository;
 import com.movieTicket.InventoryService.services.SeatHoldService;
+import com.movieTicket.InventoryService.services.ShowSeatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class SeatHoldServiceImpl implements SeatHoldService {
     private final SeatHoldRepository seatHoldRepository;
     private final SeatHoldMapper seatHoldMapper;
     private final ShowSeatRepository showSeatRepository;
+    private final ShowSeatService showSeatService;
 
 
     // ============================================================
@@ -58,47 +60,47 @@ public class SeatHoldServiceImpl implements SeatHoldService {
     public SeatHoldResponse createHold(
             CreateSeatHoldRequest request) {
 
-        // SELECT ... FOR UPDATE
+        // 1. HOLD THE SEAT
+        // ============================================================
         //
-        // This acquires a database row lock on the ShowSeat.
-        ShowSeat showSeat =
-                showSeatRepository
-                        .findByIdForUpdate(
-                                request.getShowSeatId())
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Show seat not found"));
-
-
-        // Because we have the pessimistic lock,
-        // another transaction cannot simultaneously acquire
-        // this same row using the same locking strategy.
+        // ShowSeatService is responsible for the actual concurrency
+        // control:
         //
-        // Now we safely check the business condition.
-        if (showSeat.getStatus() != SeatStatus.AVAILABLE) {
+        //     Redis lock
+        //          ↓
+        //     PostgreSQL atomic UPDATE
+        //          ↓
+        //     AVAILABLE → HELD
+        //
+        // If Redis is unavailable, ShowSeatService falls back
+        // directly to PostgreSQL.
+        //
+        boolean held =
+                showSeatService.holdSeat(
+                        request.getShowSeatId());
+
+        // If the atomic UPDATE affected 0 rows,
+        // the seat was not AVAILABLE.
+        if (!held) {
 
             throw new SeatUnavailableException(
                     "Seat is not available");
         }
 
 
-        // Change the business state:
+        // ============================================================
+        // 2. CREATE SEAT HOLD
+        // ============================================================
         //
-        // AVAILABLE → HELD
-        showSeat.setStatus(SeatStatus.HELD);
-
-
-        // Save the changed ShowSeat.
+        // At this point:
         //
-        // The row remains locked until the surrounding
-        // @Transactional method commits.
-        showSeatRepository.save(showSeat);
-
-
-        // Create the SeatHold record.
+        //     ShowSeat = HELD
         //
-        // This and the ShowSeat update are part of
-        // the SAME database transaction.
+        // Now create the corresponding SeatHold record.
+        //
+        // This operation is part of the same database transaction
+        // because createHold() is @Transactional.
+        //
         SeatHold hold =
                 seatHoldMapper.toEntity(request);
 
@@ -106,21 +108,26 @@ public class SeatHoldServiceImpl implements SeatHoldService {
                 seatHoldRepository.save(hold);
 
 
+        // ============================================================
+        // 3. TRANSACTION RESULT
+        // ============================================================
+        //
         // If everything succeeds:
         //
-        // COMMIT
-        //     ↓
-        // ShowSeat = HELD
-        // SeatHold = created
-        // Row lock = released
+        //     COMMIT
+        //       ↓
+        //     ShowSeat = HELD
+        //     SeatHold = CREATED
         //
-        // If something fails:
+        // If SeatHold creation fails:
         //
-        // ROLLBACK
-        //     ↓
-        // ShowSeat change is rolled back
-        // SeatHold creation is rolled back
-        // Row lock is released
+        //     ROLLBACK
+        //       ↓
+        //     ShowSeat = AVAILABLE
+        //     SeatHold = NOT CREATED
+        //
+        // Redis lock itself is already released by
+        // ShowSeatService after the PostgreSQL operation.
         //
         return seatHoldMapper.toResponse(savedHold);
     }

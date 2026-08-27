@@ -38,7 +38,7 @@ public class BookingSeatServiceImpl implements BookingSeatService{
 
         BookingSeat bookingSeat = BookingSeat.builder()
                 .booking(booking)
-                .seatId(request.getSeatId())
+                .showSeatId(request.getShowSeatId())
                 .seatType(request.getSeatType())
                 .basePrice(request.getBasePrice())
                 .finalPrice(request.getFinalPrice())
@@ -112,7 +112,7 @@ public class BookingSeatServiceImpl implements BookingSeatService{
                 .bookingId(
                         seat.getBooking().getBookingId()
                 )
-                .seatId(seat.getSeatId())
+                .showSeatId(seat.getShowSeatId())
                 .seatType(seat.getSeatType())
                 .basePrice(seat.getBasePrice())
                 .finalPrice(seat.getFinalPrice())

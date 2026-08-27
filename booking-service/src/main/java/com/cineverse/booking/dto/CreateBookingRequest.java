@@ -27,6 +27,11 @@ public class CreateBookingRequest {
     @NotNull
     private UUID showId;
 
+    @NotEmpty
+    @Valid
+    private List<CreateBookingSeatRequest> seats;
+
+
     @NotNull
     @DecimalMin(value = "0.0")
     private BigDecimal subtotal;

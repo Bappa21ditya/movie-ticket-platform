@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "seat_holds")
@@ -24,19 +26,19 @@ public class SeatHold {
 
     // ID of Booking in Booking Service
     @Column(nullable = false)
-    private Long bookingId;
+    private UUID bookingId;
 
     // ID of User from authentication system
     @Column(nullable = false)
-    private Long userId;
+    private UUID  userId;
 
     @Column(nullable = false)
-    private LocalDateTime expiresAt;
+    private OffsetDateTime expiresAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private HoldStatus status;
 
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 }

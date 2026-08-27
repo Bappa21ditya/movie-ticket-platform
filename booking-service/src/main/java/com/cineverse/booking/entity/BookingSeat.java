@@ -40,8 +40,8 @@ public class BookingSeat {
     /*
      * Logical reference to Inventory Service.
      */
-    @Column(name = "seat_id", nullable = false)
-    private UUID seatId;
+    @Column(name = "show_seat_id", nullable = false)
+    private Long showSeatId;
 
     @Column(name = "seat_type", nullable = false, length = 30)
     private String seatType;

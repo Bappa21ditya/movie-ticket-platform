@@ -15,7 +15,7 @@ public class BookingSeatResponse {
 
     private UUID bookingId;
 
-    private UUID seatId;
+    private Long showSeatId;
 
     private String seatType;
 
