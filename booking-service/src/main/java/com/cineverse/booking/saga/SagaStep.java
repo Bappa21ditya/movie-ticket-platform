@@ -9,6 +9,7 @@ public enum SagaStep {
 
     PAYMENT_IN_PROGRESS,
     PAYMENT_SUCCESS,
+    PAYMENT_FAILED,
 
     CONFIRMING_BOOKING,
 

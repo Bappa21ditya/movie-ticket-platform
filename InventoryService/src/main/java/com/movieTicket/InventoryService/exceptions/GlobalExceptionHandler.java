@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +30,20 @@ public class GlobalExceptionHandler {
 //                .status(HttpStatus.NOT_FOUND)
 //                .body(ex.getMessage());
 //    }
+    @ExceptionHandler(ShowSeatNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleShowSeatNotFound(ShowSeatNotFoundException ex)
+    {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", OffsetDateTime.now());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("error", "Not Found");
+        body.put("message", ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(body);
+    }
+
     @ExceptionHandler(SeatUnavailableException.class)
     public ResponseEntity<String> handleSeatUnavailable(
             SeatUnavailableException ex) {
@@ -68,6 +83,7 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT)
                 .body("Seat was already held by another user");
     }
+
 
 
 

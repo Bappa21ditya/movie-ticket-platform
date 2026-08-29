@@ -3,9 +3,11 @@ import com.movieTicket.InventoryService.dtos.CreateSeatHoldRequest;
 import com.movieTicket.InventoryService.dtos.SeatHoldResponse;
 import com.movieTicket.InventoryService.entity.SeatHold;
 import com.movieTicket.InventoryService.entity.ShowSeat;
+import com.movieTicket.InventoryService.enums.HoldStatus;
 import com.movieTicket.InventoryService.enums.SeatStatus;
 import com.movieTicket.InventoryService.exceptions.ResourceNotFoundException;
 import com.movieTicket.InventoryService.exceptions.SeatUnavailableException;
+import com.movieTicket.InventoryService.exceptions.ShowSeatNotFoundException;
 import com.movieTicket.InventoryService.mapper.SeatHoldMapper;
 import com.movieTicket.InventoryService.repos.SeatHoldRepository;
 import com.movieTicket.InventoryService.repos.ShowSeatRepository;
@@ -15,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -137,6 +141,38 @@ public class SeatHoldServiceImpl implements SeatHoldService {
     // READ OPERATIONS
     // ============================================================
 
+    @Transactional
+    public void releaseHold(Long showSeatId, UUID bookingId) {
+
+        SeatHold hold = seatHoldRepository
+                .findByShowSeatIdAndBookingId(showSeatId, bookingId)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Seat hold not found"
+                        ));
+
+        if (hold.getStatus() != HoldStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Seat hold is not active"
+            );
+        }
+
+        // Release the inventory seat
+        boolean released =
+                releaseSeat(showSeatId);
+
+        if (!released) {
+            throw new IllegalStateException(
+                    "Unable to release seat"
+            );
+        }
+
+        // Release the hold
+        hold.setStatus(HoldStatus.RELEASED);
+
+        seatHoldRepository.save(hold);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public SeatHoldResponse getHold(Long holdId) {
@@ -174,6 +210,45 @@ public class SeatHoldServiceImpl implements SeatHoldService {
                 .stream()
                 .map(seatHoldMapper::toResponse)
                 .toList();
+    }
+
+
+    @Transactional
+    public void confirmSeat(Long showSeatId, UUID bookingId) {
+
+        ShowSeat showSeat = showSeatRepository.findById(showSeatId)
+                .orElseThrow(() ->
+                        new ShowSeatNotFoundException(showSeatId)
+                );
+
+        if (showSeat.getStatus() != SeatStatus.HELD) {
+            throw new IllegalStateException("Seat is not held");
+        }
+
+        SeatHold seatHold = seatHoldRepository
+                .findByShowSeatIdAndBookingId(showSeatId, bookingId)
+                .orElseThrow(() ->
+                        new IllegalStateException("No hold found for this booking")
+                );
+
+        if (seatHold.getStatus() != HoldStatus.ACTIVE) {
+            throw new IllegalStateException("Hold is not active");
+        }
+
+        if (seatHold.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            throw new IllegalStateException("Seat hold has expired");
+        }
+
+        showSeat.setStatus(SeatStatus.BOOKED);
+
+        seatHold.setStatus(HoldStatus.CONFIRMED);
+    }
+
+    public boolean releaseSeat(Long showSeatId) {
+
+        int updated =
+                showSeatRepository.releaseSeat(showSeatId);
+        return updated == 1;
     }
 }
 //@Service

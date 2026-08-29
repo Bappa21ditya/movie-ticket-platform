@@ -51,5 +51,13 @@ int holdSeat(@Param("showSeatId") Long showSeatId);
     """, nativeQuery = true)
     void resetSeat(@Param("showSeatId") Long showSeatId);
 
+    @Modifying
+    @Query("""
+    UPDATE ShowSeat s
+    SET s.status = 'AVAILABLE'
+    WHERE s.showSeatId = :showSeatId
+      AND s.status = 'HELD'
+""")
+    int releaseSeat(@Param("showSeatId") Long showSeatId);
 
 }

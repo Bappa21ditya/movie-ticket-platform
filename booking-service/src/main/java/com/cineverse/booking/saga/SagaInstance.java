@@ -8,6 +8,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -49,12 +50,12 @@ public class SagaInstance {
     private String lastError;
 
     @Column(name = "started_at", nullable = false)
-    private Instant startedAt;
+    private OffsetDateTime startedAt;
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    private OffsetDateTime updatedAt;
 
     @Column(name = "completed_at")
-    private Instant completedAt;
+    private OffsetDateTime completedAt;
 
 }

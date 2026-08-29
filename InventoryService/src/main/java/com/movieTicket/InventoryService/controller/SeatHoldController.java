@@ -1,6 +1,8 @@
 package com.movieTicket.InventoryService.controller;
 
+import com.movieTicket.InventoryService.dtos.ConfirmSeatRequest;
 import com.movieTicket.InventoryService.dtos.CreateSeatHoldRequest;
+import com.movieTicket.InventoryService.dtos.ReleaseSeatRequest;
 import com.movieTicket.InventoryService.dtos.SeatHoldResponse;
 import com.movieTicket.InventoryService.services.SeatHoldService;
 import jakarta.validation.Valid;
@@ -48,5 +50,28 @@ public class SeatHoldController {
 
         return ResponseEntity.ok(
                 seatHoldService.getHoldsByUser(userId));
+    }
+
+    @PostMapping("/confirm")
+    public ResponseEntity<Void> confirmSeat(
+            @RequestBody ConfirmSeatRequest request) {
+
+        seatHoldService.confirmSeat(
+                request.getShowSeatId(),
+                request.getBookingId()
+        );
+
+        return ResponseEntity.ok().build();
+    }
+    @PostMapping("/release")
+    public ResponseEntity<Void> releaseSeat(
+            @RequestBody ReleaseSeatRequest request) {
+
+        seatHoldService.releaseHold(
+                request.getShowSeatId(),
+                request.getBookingId()
+        );
+
+        return ResponseEntity.noContent().build();
     }
 }
