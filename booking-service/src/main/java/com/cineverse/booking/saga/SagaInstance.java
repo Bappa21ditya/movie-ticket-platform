@@ -1,5 +1,6 @@
 package com.cineverse.booking.saga;
 
+import com.cineverse.booking.payment.enums.CompensationType;
 import jakarta.persistence.*;
 import lombok.*;
 import jakarta.persistence.Entity;
@@ -57,5 +58,8 @@ public class SagaInstance {
 
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
+
+    @Enumerated(EnumType.STRING)
+    private CompensationType compensationType;
 
 }

@@ -60,4 +60,15 @@ int holdSeat(@Param("showSeatId") Long showSeatId);
 """)
     int releaseSeat(@Param("showSeatId") Long showSeatId);
 
+    @Modifying
+    @Query("""
+    UPDATE ShowSeat s
+    SET s.status = 'AVAILABLE'
+    WHERE s.showSeatId = :showSeatId
+      AND s.status = 'BOOKED'
+""")
+    int releaseBookedSeat(
+            @Param("showSeatId") Long showSeatId
+    );
+
 }

@@ -2,28 +2,34 @@ package com.cineverse.booking.payment.service;
 
 import com.cineverse.booking.payment.dto.CreatePaymentRequest;
 import com.cineverse.booking.payment.dto.PaymentResponse;
+import com.cineverse.booking.payment.dto.RefundResponse;
 import com.cineverse.booking.payment.entity.Payment;
 import com.cineverse.booking.payment.entity.PaymentTransaction;
+import com.cineverse.booking.payment.entity.Refund;
 import com.cineverse.booking.payment.enums.PaymentMethod;
 import com.cineverse.booking.payment.enums.PaymentStatus;
 import com.cineverse.booking.payment.enums.PaymentTransactionStatus;
+import com.cineverse.booking.payment.enums.RefundStatus;
 import com.cineverse.booking.payment.repos.PaymentRepository;
 import com.cineverse.booking.payment.repos.PaymentTransactionRepository;
+import com.cineverse.booking.payment.repos.RefundRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+//@Transactional
 public class PaymentServiceImpl implements PaymentService{
 
     private final PaymentRepository paymentRepository;
     private final PaymentTransactionRepository transactionRepository;
+    private final RefundRepository refundRepository;
 
     @Override
     public PaymentResponse createPayment(
@@ -83,7 +89,7 @@ public class PaymentServiceImpl implements PaymentService{
 
         transactionRepository.save(transaction);
 
-        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setStatus(PaymentStatus.FAILED);
         payment.setUpdatedAt(OffsetDateTime.now());
 
         paymentRepository.save(payment);
@@ -119,30 +125,94 @@ public class PaymentServiceImpl implements PaymentService{
         return mapToResponse(payment);
     }
 
-    @Override
-    public PaymentResponse refundPayment(UUID paymentId) {
+//    @Override
+//    public PaymentResponse refundPayment(UUID paymentId) {
+//
+//        Payment payment = paymentRepository.findById(paymentId)
+//                .orElseThrow(() ->
+//                        new RuntimeException("Payment not found")
+//                );
+//
+//        payment.setStatus(PaymentStatus.REFUND_PENDING);
+//        payment.setUpdatedAt(OffsetDateTime.now());
+//
+//        PaymentTransaction transaction =
+//                PaymentTransaction.builder()
+//                        .paymentId(payment.getPaymentId())
+//                        .amount(payment.getAmount())
+//                        .status(
+//                                PaymentTransactionStatus.REFUND_PENDING
+//                        )
+//                        .createdAt(OffsetDateTime.now())
+//                        .build();
+//
+//        transactionRepository.save(transaction);
+//
+//        return mapToResponse(paymentRepository.save(payment));
+//    }
 
-        Payment payment = paymentRepository.findById(paymentId)
+    @Override
+    @Transactional
+    public RefundResponse refundPayment(UUID bookingId) {
+
+        // 1. Find payment
+        Payment payment = paymentRepository
+                .findByBookingId(bookingId)
                 .orElseThrow(() ->
-                        new RuntimeException("Payment not found")
+                        new IllegalStateException(
+                                "Payment not found for booking: " + bookingId
+                        )
                 );
 
-        payment.setStatus(PaymentStatus.REFUND_PENDING);
+        // 2. Payment must have succeeded
+        if (payment.getStatus() != PaymentStatus.SUCCESS) {
+            throw new IllegalStateException(
+                    "Cannot refund payment with status: "
+                            + payment.getStatus()
+            );
+        }
+
+        // 3. Idempotency check
+        Optional<Refund> existingRefund =
+                refundRepository.findByPaymentId(payment.getPaymentId());
+
+        if (existingRefund.isPresent()) {
+
+            Refund refund = existingRefund.get();
+
+            return RefundResponse.builder()
+                    .refundId(refund.getRefundId())
+                    .bookingId(refund.getBookingId())
+                    .amount(refund.getAmount())
+                    .status(refund.getStatus())
+                    .build();
+        }
+
+        // 4. Create refund
+        Refund refund = Refund.builder()
+                .paymentId(payment.getPaymentId())
+                .bookingId(bookingId)
+                .amount(payment.getAmount())
+                .status(RefundStatus.SUCCESS)
+                .reason("Booking compensation")
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+
+        refund = refundRepository.save(refund);
+
+        // 5. Update payment status
+        payment.setStatus(PaymentStatus.REFUNDED);
         payment.setUpdatedAt(OffsetDateTime.now());
 
-        PaymentTransaction transaction =
-                PaymentTransaction.builder()
-                        .paymentId(payment.getPaymentId())
-                        .amount(payment.getAmount())
-                        .status(
-                                PaymentTransactionStatus.REFUND_PENDING
-                        )
-                        .createdAt(OffsetDateTime.now())
-                        .build();
+        paymentRepository.save(payment);
 
-        transactionRepository.save(transaction);
-
-        return mapToResponse(paymentRepository.save(payment));
+        return RefundResponse.builder()
+                .refundId(refund.getRefundId())
+                .bookingId(bookingId)
+                .amount(refund.getAmount())
+                .status(refund.getStatus())
+                .build();
     }
 
     private PaymentResponse mapToResponse(Payment payment) {

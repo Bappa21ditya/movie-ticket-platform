@@ -44,4 +44,21 @@ public class InventoryClient {
                 .retrieve()
                 .toBodilessEntity();
     }
+
+    public void releaseConfirmedSeat(
+            Long showSeatId,
+            UUID bookingId) {
+
+        restClient
+                .post()
+                .uri("/api/v1/seat-holds/release-confirmed")
+                .body(
+                        new ReleaseSeatRequest(
+                                showSeatId,
+                                bookingId
+                        )
+                )
+                .retrieve()
+                .toBodilessEntity();
+    }
 }

@@ -2,6 +2,7 @@ package com.cineverse.booking.payment.controller;
 
 import com.cineverse.booking.payment.dto.CreatePaymentRequest;
 import com.cineverse.booking.payment.dto.PaymentResponse;
+import com.cineverse.booking.payment.dto.RefundResponse;
 import com.cineverse.booking.payment.service.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,11 +46,12 @@ public class PaymentController {
     }
 
     @PostMapping("/{paymentId}/refund")
-    public ResponseEntity<PaymentResponse> refund(
+    public ResponseEntity<RefundResponse> refund(
             @PathVariable UUID paymentId) {
 
         return ResponseEntity.ok(
                 paymentService.refundPayment(paymentId)
         );
     }
+
 }

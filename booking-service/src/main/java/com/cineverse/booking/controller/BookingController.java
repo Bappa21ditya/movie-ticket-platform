@@ -4,6 +4,7 @@ package com.cineverse.booking.controller;
 import com.cineverse.booking.dto.CreateBookingRequest;
 import com.cineverse.booking.dto.UpdateBookingRequest;
 import com.cineverse.booking.dto.BookingResponse;
+import com.cineverse.booking.sagaServices.BookingSagaOrchestrator;
 import com.cineverse.booking.service.BookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,8 @@ import java.util.UUID;
 public class BookingController {
 
     private final BookingService bookingService;
+
+    private final BookingSagaOrchestrator bookingSagaOrchestrator;
 
     @PostMapping
     public ResponseEntity<BookingResponse> createBooking(
@@ -87,5 +90,15 @@ public class BookingController {
         bookingService.deleteBooking(bookingId);
 
         return ResponseEntity.noContent().build();
+    }
+    @PostMapping("/saga/{sagaId}/retry-compensation")
+    public ResponseEntity<String> retryCompensation(
+            @PathVariable UUID sagaId) {
+
+        bookingSagaOrchestrator.retryCompensation(sagaId);
+
+        return ResponseEntity.ok(
+                "Compensation retry completed"
+        );
     }
 }

@@ -74,4 +74,15 @@ public class SeatHoldController {
 
         return ResponseEntity.noContent().build();
     }
+    @PostMapping("/release-confirmed")
+    public ResponseEntity<Void> releaseConfirmedSeat(
+            @RequestBody ReleaseSeatRequest request) {
+
+        seatHoldService.compensateConfirmedSeat(
+                request.getShowSeatId(),
+                request.getBookingId()
+        );
+
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -12,4 +12,9 @@ public interface SagaInstanceRepository  extends JpaRepository<SagaInstance, UUI
     Optional<SagaInstance> findByBookingId(UUID bookingId);
 
     List<SagaInstance> findByStatus(SagaStatus status);
+
+    List<SagaInstance> findByCurrentStepAndStatus(
+            SagaStep currentStep,
+            SagaStatus status
+    );
 }

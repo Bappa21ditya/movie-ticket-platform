@@ -157,20 +157,38 @@ public class SeatHoldServiceImpl implements SeatHoldService {
             );
         }
 
-        // Release the inventory seat
-        boolean released =
-                releaseSeat(showSeatId);
+        // Release inventory seat
+       // int updated =
+                showSeatRepository.releaseSeat(showSeatId);
 
-        if (!released) {
-            throw new IllegalStateException(
-                    "Unable to release seat"
-            );
-        }
+        /*
+         * updated == 1
+         *     → HELD → AVAILABLE
+         *
+         * updated == 0
+         *     → Seat is probably already AVAILABLE.
+         *        For compensation, this is not necessarily an error.
+         */
 
-        // Release the hold
+        // Mark hold as released
         hold.setStatus(HoldStatus.RELEASED);
 
         seatHoldRepository.save(hold);
+
+        // Release the inventory seat
+//        boolean released =
+//                releaseSeat(showSeatId);
+//
+//        if (!released) {
+//            throw new IllegalStateException(
+//                    "Unable to release seat"
+//            );
+//        }
+//
+//        // Release the hold
+//        hold.setStatus(HoldStatus.RELEASED);
+//
+//        seatHoldRepository.save(hold);
     }
 
     @Override
@@ -245,10 +263,59 @@ public class SeatHoldServiceImpl implements SeatHoldService {
     }
 
     public boolean releaseSeat(Long showSeatId) {
+//     boolean simulateReleaseFailure = true;
+//
+//        if (simulateReleaseFailure) {
+//            return false;
+//        }
 
         int updated =
                 showSeatRepository.releaseSeat(showSeatId);
         return updated == 1;
+    }
+    @Transactional
+    public void compensateConfirmedSeat(
+            Long showSeatId,
+            UUID bookingId) {
+
+        SeatHold hold = seatHoldRepository
+                .findByShowSeatIdAndBookingId(
+                        showSeatId,
+                        bookingId
+                )
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Seat hold not found"
+                        )
+                );
+
+        // Idempotent success
+        if (hold.getStatus() == HoldStatus.RELEASED) {
+            return;
+        }
+
+        if (hold.getStatus() != HoldStatus.CONFIRMED) {
+            throw new IllegalStateException(
+                    "Seat hold is not confirmed"
+            );
+        }
+
+        int updated =
+                showSeatRepository.releaseBookedSeat(
+                        showSeatId
+                );
+
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "Unable to release booked seat"
+            );
+        }
+
+        hold.setStatus(
+                HoldStatus.RELEASED
+        );
+
+        seatHoldRepository.save(hold);
     }
 }
 //@Service

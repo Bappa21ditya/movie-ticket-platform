@@ -23,4 +23,6 @@ public interface SeatHoldService {
     public boolean releaseSeat(Long showSeatId);
 
     public void releaseHold(Long showSeatId, UUID bookingId);
+
+    public void compensateConfirmedSeat(Long showSeatId, UUID bookingId);
 }

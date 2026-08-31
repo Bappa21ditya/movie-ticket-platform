@@ -2,6 +2,7 @@ package com.cineverse.booking.payment.service;
 
 import com.cineverse.booking.payment.dto.CreatePaymentRequest;
 import com.cineverse.booking.payment.dto.PaymentResponse;
+import com.cineverse.booking.payment.dto.RefundResponse;
 
 import java.util.UUID;
 
@@ -13,5 +14,7 @@ public interface PaymentService {
 
     PaymentResponse getPaymentByBookingId(UUID bookingId);
 
-    PaymentResponse refundPayment(UUID paymentId);
+    RefundResponse refundPayment(UUID paymentId);
+
+
 }
