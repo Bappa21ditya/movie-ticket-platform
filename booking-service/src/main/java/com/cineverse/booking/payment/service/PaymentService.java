@@ -16,5 +16,7 @@ public interface PaymentService {
 
     RefundResponse refundPayment(UUID paymentId);
 
+    public RefundResponse processPendingRefund(UUID bookingId);
+
 
 }

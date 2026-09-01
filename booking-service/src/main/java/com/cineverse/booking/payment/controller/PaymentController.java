@@ -45,12 +45,12 @@ public class PaymentController {
         );
     }
 
-    @PostMapping("/{paymentId}/refund")
+    @PostMapping("/{bookingId}/refund")
     public ResponseEntity<RefundResponse> refund(
-            @PathVariable UUID paymentId) {
+            @PathVariable UUID bookingId) {
 
         return ResponseEntity.ok(
-                paymentService.refundPayment(paymentId)
+                paymentService.refundPayment(bookingId)
         );
     }
 

@@ -44,6 +44,10 @@ public class Refund {
 
     private String reason;
 
+    private Integer retryCount;
+
+    private String lastError;
+
     private OffsetDateTime createdAt;
 
     private OffsetDateTime updatedAt;

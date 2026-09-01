@@ -46,5 +46,12 @@ public class SagaStateService {
         saga.setUpdatedAt(OffsetDateTime.now());
 
         sagaInstanceRepository.save(saga);
+
+        System.out.println(
+                "AFTER SAVE -> step = " + saga.getCurrentStep()
+                        + ", status = " + saga.getStatus()
+                        + ", retry = " + saga.getRetryCount()
+                        + ", error = " + saga.getLastError()
+        );
     }
 }

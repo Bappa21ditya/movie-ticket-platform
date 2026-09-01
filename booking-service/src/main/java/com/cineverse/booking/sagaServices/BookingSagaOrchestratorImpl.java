@@ -23,6 +23,7 @@ import com.cineverse.booking.saga.SagaStep;
 import com.cineverse.booking.saga.SagaType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -234,7 +235,8 @@ public class BookingSagaOrchestratorImpl
         // ========================================================
         // STEP 6 - CONFIRM BOOKING
         // ========================================================
-        boolean simulateBookingFailure = true;
+        // for test make it false
+        boolean simulateBookingFailure = false;
         try {
 
             /*
@@ -308,7 +310,7 @@ public class BookingSagaOrchestratorImpl
                         bookingSeats
                 );
 
-              //  throw ex;
+            return;
             }
 
 
@@ -345,6 +347,12 @@ public class BookingSagaOrchestratorImpl
             Booking booking,
             List<BookingSeat> bookingSeats) {
 
+        System.out.println(
+                "BEFORE PAYMENT_FAILED -> " +
+                        saga.getCurrentStep()
+        );
+
+
 
         // STEP - PAYMENT FAILED
 
@@ -359,6 +367,10 @@ public class BookingSagaOrchestratorImpl
         sagaInstanceRepository.save(saga);
 
 
+        System.out.println(
+                "AFTER PAYMENT_FAILED -> " +
+                        saga.getCurrentStep()
+        );
         // ========================================================
         // START COMPENSATION
         // ========================================================
@@ -380,7 +392,12 @@ public class BookingSagaOrchestratorImpl
         );
 
         sagaInstanceRepository.save(saga);
-
+        System.out.println(
+                "AFTER COMPENSATING -> step=" +
+                        saga.getCurrentStep() +
+                        ", status=" +
+                        saga.getStatus()
+        );
 
         try {
 
@@ -412,6 +429,12 @@ public class BookingSagaOrchestratorImpl
 
 
         } catch (Exception ex) {
+            System.out.println("=================================");
+            System.out.println("COMPENSATION CATCH REACHED");
+            System.out.println("Saga ID = " + saga.getSagaId());
+            System.out.println("Exception = " + ex.getMessage());
+            System.out.println("=================================");
+
 
             sagaStateService.markCompensationFailed(
                     saga.getSagaId(),
@@ -422,12 +445,9 @@ public class BookingSagaOrchestratorImpl
         }
     }
 
-
-    // ============================================================
-    // RETRY COMPENSATION
-    // ============================================================
-
+// COMPENSATE / RECOVER SAGA
     @Override
+    @Transactional
     public void retryCompensation(UUID sagaId) {
 
         // ========================================================
@@ -438,27 +458,22 @@ public class BookingSagaOrchestratorImpl
                 sagaInstanceRepository.findById(sagaId)
                         .orElseThrow(() ->
                                 new RuntimeException(
-                                        "Saga not found: "
-                                                + sagaId
+                                        "Saga not found: " + sagaId
                                 )
                         );
-
 
         // ========================================================
         // 2. VALIDATE STATE
         // ========================================================
 
-        if (saga.getCurrentStep()
-                != SagaStep.COMPENSATING
-                ||
-                saga.getStatus()
-                        != SagaStatus.IN_PROGRESS) {
+        if ((saga.getCurrentStep() != SagaStep.COMPENSATING
+                && saga.getCurrentStep() != SagaStep.REFUND_PENDING)
+                || saga.getStatus() != SagaStatus.IN_PROGRESS) {
 
             throw new IllegalStateException(
                     "Saga is not waiting for compensation retry"
             );
         }
-
 
         // ========================================================
         // 3. FIND BOOKING
@@ -474,85 +489,71 @@ public class BookingSagaOrchestratorImpl
                                 )
                         );
 
-
-        // ========================================================
-        // 4. FIND BOOKING SEATS
-        // ========================================================
-
-        List<BookingSeat> bookingSeats =
-                bookingSeatRepository
-                        .findByBookingBookingId(
-                                saga.getBookingId()
-                        );
-
-
         try {
 
             // ====================================================
-            // 5. RELEASE SEATS
+            // CASE 0: REFUND_PENDING RECOVERY
             // ====================================================
 
-            releaseAllSeats(
-                    bookingSeats,
-                    saga.getBookingId()
-            );
+            if (saga.getCurrentStep()
+                    == SagaStep.REFUND_PENDING) {
 
+                System.out.println(
+                        "===== REFUND PENDING RECOVERY ====="
+                );
 
-            // ====================================================
-            // 6. CHECK COMPENSATION TYPE
-            // ====================================================
+                System.out.println(
+                        "Saga ID: " + saga.getSagaId()
+                );
 
-            CompensationType compensationType =
-                    saga.getCompensationType();
+                System.out.println(
+                        "Booking ID: " + saga.getBookingId()
+                );
 
-
-            // ====================================================
-            // PAYMENT_FAILED
-            // ====================================================
-
-            if (compensationType
-                    == CompensationType.PAYMENT_FAILED) {
-
-                /*
-                 * Payment itself failed.
-                 *
-                 * Therefore:
-                 *
-                 * Release Seat
-                 *       ↓
-                 * Cancel Booking
-                 *
-                 * NO REFUND
-                 */
-            }
-
-
-            // ====================================================
-            // BOOKING_FAILED_AFTER_PAYMENT
-            // ====================================================
-
-            else if (compensationType
-                    == CompensationType.BOOKING_FAILED_AFTER_PAYMENT) {
-
-                /*
-                 * Payment succeeded.
-                 *
-                 * Booking update failed.
-                 *
-                 * Therefore:
-                 *
-                 * Release Seat
-                 *       ↓
-                 * Refund Payment
-                 *       ↓
-                 * Cancel Booking
-                 */
+                // -----------------------------------------------
+                // ONLY RETRY REFUND
+                // -----------------------------------------------
 
                 RefundResponse refundResponse =
-                        paymentService.refundPayment(
+                        paymentService.processPendingRefund(
                                 saga.getBookingId()
                         );
 
+                // -----------------------------------------------
+                // REFUND STILL PENDING
+                // -----------------------------------------------
+
+                if (refundResponse.getStatus()
+                        == RefundStatus.PENDING) {
+
+                    saga.setRetryCount(
+                            saga.getRetryCount() + 1
+                    );
+
+                    saga.setLastError(
+                            "Refund still pending after recovery attempt."
+                    );
+
+                    saga.setCurrentStep(
+                            SagaStep.REFUND_PENDING
+                    );
+
+                    saga.setStatus(
+                            SagaStatus.IN_PROGRESS
+                    );
+
+                    saga.setUpdatedAt(
+                            OffsetDateTime.now()
+                    );
+
+                    sagaInstanceRepository.save(saga);
+
+                    return;
+                }
+
+                // -----------------------------------------------
+                // REFUND FAILED
+                // -----------------------------------------------
 
                 if (refundResponse.getStatus()
                         != RefundStatus.SUCCESS) {
@@ -561,36 +562,238 @@ public class BookingSagaOrchestratorImpl
                             "Refund was not successful"
                     );
                 }
+
+                // -----------------------------------------------
+                // CANCEL BOOKING
+                // -----------------------------------------------
+
+                booking.setStatus(
+                        BookingStatus.CANCELLED
+                );
+
+                booking.setUpdatedAt(
+                        OffsetDateTime.now()
+                );
+
+                bookingRepository.save(booking);
+
+                // -----------------------------------------------
+                // COMPENSATION COMPLETED
+                // -----------------------------------------------
+
+                markSagaCompensationCompleted(saga);
+
+                System.out.println(
+                        "===== REFUND RECOVERY SUCCESS ====="
+                );
+
+                return;
             }
 
+            // ====================================================
+            // FIND BOOKING SEATS
+            // ====================================================
+
+            List<BookingSeat> bookingSeats =
+                    bookingSeatRepository
+                            .findByBookingBookingId(
+                                    saga.getBookingId()
+                            );
 
             // ====================================================
-            // 7. CANCEL BOOKING
+            // CHECK COMPENSATION TYPE
             // ====================================================
 
-            booking.setStatus(
-                    BookingStatus.CANCELLED
+            CompensationType compensationType =
+                    saga.getCompensationType();
+
+            // ====================================================
+            // CASE 1: PAYMENT FAILED
+            // ====================================================
+
+            if (compensationType
+                    == CompensationType.PAYMENT_FAILED) {
+
+                /*
+                 * Payment FAILED
+                 *       ↓
+                 * Seat was HELD
+                 *       ↓
+                 * Release held seats
+                 *       ↓
+                 * Cancel booking
+                 *       ↓
+                 * Saga FAILED
+                 */
+                releaseAllSeats(
+                        bookingSeats,
+                        saga.getBookingId()
+                );
+
+                booking.setStatus(
+                        BookingStatus.CANCELLED
+                );
+
+                booking.setUpdatedAt(
+                        OffsetDateTime.now()
+                );
+
+                bookingRepository.save(booking);
+
+                markSagaCompensationCompleted(saga);
+
+                return;
+            }
+
+            // ====================================================
+            // CASE 2: BOOKING FAILED AFTER PAYMENT
+            // ====================================================
+
+            if (compensationType
+                    == CompensationType.BOOKING_FAILED_AFTER_PAYMENT) {
+
+                /*
+                 * Payment SUCCESS
+                 *       ↓
+                 * Seats CONFIRMED
+                 *       ↓
+                 * Booking confirmation FAILED
+                 *       ↓
+                 * Release confirmed seats
+                 *       ↓
+                 * Refund
+                 */
+
+                // -----------------------------------------------
+                // RELEASE CONFIRMED SEATS
+                // -----------------------------------------------
+
+                for (BookingSeat bookingSeat : bookingSeats) {
+
+                    inventoryClient.releaseConfirmedSeat(
+                            bookingSeat.getShowSeatId(),
+                            saga.getBookingId()
+                    );
+                }
+
+                // -----------------------------------------------
+                // REFUND
+                // -----------------------------------------------
+
+                RefundResponse refundResponse =
+                        paymentService.processPendingRefund(
+                                saga.getBookingId()
+                        );
+
+                // -----------------------------------------------
+                // REFUND PENDING
+                // -----------------------------------------------
+
+                if (refundResponse.getStatus()
+                        == RefundStatus.PENDING) {
+
+                    System.out.println(
+                            "===== REFUND PENDING ====="
+                    );
+
+                    System.out.println(
+                            "Saga ID: " + saga.getSagaId()
+                    );
+
+                    System.out.println(
+                            "Booking ID: " + saga.getBookingId()
+                    );
+
+                    saga.setCurrentStep(
+                            SagaStep.REFUND_PENDING
+                    );
+
+                    saga.setStatus(
+                            SagaStatus.IN_PROGRESS
+                    );
+
+                    saga.setLastError(
+                            "Refund pending. Waiting for refund recovery."
+                    );
+
+                    saga.setUpdatedAt(
+                            OffsetDateTime.now()
+                    );
+
+                    sagaInstanceRepository.save(saga);
+
+                    return;
+                }
+
+                // -----------------------------------------------
+                // REFUND FAILED
+                // -----------------------------------------------
+
+                if (refundResponse.getStatus()
+                        != RefundStatus.SUCCESS) {
+
+                    throw new IllegalStateException(
+                            "Refund was not successful"
+                    );
+                }
+
+                // -----------------------------------------------
+                // CANCEL BOOKING
+                // -----------------------------------------------
+
+                booking.setStatus(
+                        BookingStatus.CANCELLED
+                );
+
+                booking.setUpdatedAt(
+                        OffsetDateTime.now()
+                );
+
+                bookingRepository.save(booking);
+
+                // -----------------------------------------------
+                // COMPENSATION COMPLETED
+                // -----------------------------------------------
+
+                markSagaCompensationCompleted(saga);
+
+                return;
+            }
+
+            // ====================================================
+            // UNKNOWN COMPENSATION TYPE
+            // ====================================================
+
+            throw new IllegalStateException(
+                    "Unknown compensation type: "
+                            + compensationType
             );
-
-            booking.setUpdatedAt(
-                    OffsetDateTime.now()
-            );
-
-            bookingRepository.save(booking);
-
-
-            // ====================================================
-            // 8. COMPENSATION COMPLETED
-            // ====================================================
-
-            markSagaCompensationCompleted(saga);
-
 
         } catch (Exception ex) {
 
             // ====================================================
-            // RETRY FAILED
+            // RECOVERY / COMPENSATION FAILED
             // ====================================================
+
+            System.out.println(
+                    "===== COMPENSATION RECOVERY FAILED ====="
+            );
+
+            System.out.println(
+                    "Saga ID: " + saga.getSagaId()
+            );
+
+            System.out.println(
+                    "Retry count: " + saga.getRetryCount()
+            );
+
+            System.out.println(
+                    "Exception: " + ex.getClass().getName()
+            );
+
+            System.out.println(
+                    "Message: " + ex.getMessage()
+            );
 
             saga.setRetryCount(
                     saga.getRetryCount() + 1
@@ -600,9 +803,18 @@ public class BookingSagaOrchestratorImpl
                     ex.getMessage()
             );
 
-            saga.setCurrentStep(
-                    SagaStep.COMPENSATING
-            );
+            /*
+             * If refund recovery fails, keep it in
+             * REFUND_PENDING so the scheduler can
+             * retry it again.
+             */
+            if (saga.getCurrentStep()
+                    != SagaStep.REFUND_PENDING) {
+
+                saga.setCurrentStep(
+                        SagaStep.COMPENSATING
+                );
+            }
 
             saga.setStatus(
                     SagaStatus.IN_PROGRESS
@@ -619,9 +831,6 @@ public class BookingSagaOrchestratorImpl
     }
 
 
-    // ============================================================
-    // COMPENSATE AFTER BOOKING FAILURE
-    // ============================================================
 
     private void compensateAfterBookingFailure(
             SagaInstance saga,
@@ -634,10 +843,6 @@ public class BookingSagaOrchestratorImpl
             // 1. RELEASE SEATS
             // ====================================================
 
-//            releaseAllSeats(
-//                    bookingSeats,
-//                    booking.getBookingId()
-//            );
             for (BookingSeat bookingSeat : bookingSeats) {
 
                 inventoryClient.releaseConfirmedSeat(
@@ -657,14 +862,35 @@ public class BookingSagaOrchestratorImpl
                     );
 
 
-            if (refundResponse.getStatus()
-                    != RefundStatus.SUCCESS) {
+            if (refundResponse.getStatus() == RefundStatus.PENDING) {
 
-                throw new IllegalStateException(
-                        "Refund was not successful"
+                saga.setCurrentStep(
+                        SagaStep.REFUND_PENDING
                 );
+
+                saga.setStatus(
+                        SagaStatus.IN_PROGRESS
+                );
+
+                saga.setLastError(
+                        "Refund pending. Waiting for retry."
+                );
+
+                saga.setUpdatedAt(
+                        OffsetDateTime.now()
+                );
+
+                sagaInstanceRepository.save(saga);
+
+                return;
             }
 
+            if (refundResponse.getStatus() != RefundStatus.SUCCESS) {
+
+                throw new IllegalStateException(
+                        "Refund failed"
+                );
+            }
 
             // ====================================================
             // 3. CANCEL BOOKING
@@ -717,12 +943,22 @@ public class BookingSagaOrchestratorImpl
             List<BookingSeat> bookingSeats,
             UUID bookingId) {
 
+        // only  for test make it true
+        boolean simulateCompensationFailure = false;
+
+        if (simulateCompensationFailure) {
+            throw new RuntimeException(
+                    "SIMULATED COMPENSATION FAILURE"
+            );
+        }
+
         for (BookingSeat bookingSeat : bookingSeats) {
 
             inventoryClient.releaseSeat(
                     bookingSeat.getShowSeatId(),
                     bookingId
             );
+
         }
     }
 
@@ -732,13 +968,8 @@ public class BookingSagaOrchestratorImpl
     // ============================================================
 
     private void markBookingFailed(
-            Booking bookings) {
+            Booking booking) {
 
-        Booking booking =
-                bookingRepository.findById(bookings.getBookingId())
-                        .orElseThrow(() ->
-                                new BookingNotFoundException(bookings.getBookingId())
-                        );
         Booking freshBooking =
                 bookingRepository.findById(
                                 booking.getBookingId()

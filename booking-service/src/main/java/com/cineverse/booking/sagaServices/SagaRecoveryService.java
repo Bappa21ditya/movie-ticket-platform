@@ -20,8 +20,15 @@ public class SagaRecoveryService {
     private final SagaInstanceRepository sagaInstanceRepository;
     private final BookingSagaOrchestrator bookingSagaOrchestrator;
 
-    @Scheduled(fixedDelay = 10000)
-    public void recoverCompensatingSagas() {
+    @Scheduled(fixedDelay = 30000)
+    public void recoverSagas() {
+
+        recoverCompensatingSagas();
+
+        recoverRefundPendingSagas();
+    }
+
+    private void recoverCompensatingSagas() {
 
         List<SagaInstance> sagas =
                 sagaInstanceRepository.findByCurrentStepAndStatus(
@@ -31,11 +38,8 @@ public class SagaRecoveryService {
 
         for (SagaInstance saga : sagas) {
 
-
             if (saga.getRetryCount() >= MAX_RETRIES) {
 
-
-                // Stop retrying after maximum attempts
                 saga.setStatus(SagaStatus.FAILED);
 
                 saga.setLastError(
@@ -49,38 +53,71 @@ public class SagaRecoveryService {
 
                 sagaInstanceRepository.save(saga);
 
-                System.out.println(
-                        "Saga permanently failed after max retries: "
-                                + saga.getSagaId()
-                );
-
                 continue;
             }
 
             try {
+                System.out.println("=================================");
+                System.out.println("SCHEDULER FOUND REFUND_PENDING SAGA");
+                System.out.println("Saga ID: " + saga.getSagaId());
+                System.out.println("Booking ID: " + saga.getBookingId());
+                System.out.println("=================================");
 
-//                bookingSagaOrchestrator.retryCompensation(
-//                        saga.getSagaId()
-//                );
                 bookingSagaOrchestrator.retryCompensation(
                         saga.getSagaId()
                 );
 
             } catch (Exception ex) {
 
-                // retryCompensation already records
-                // retryCount + lastError
-
-//                System.out.println(
-//                        "Saga recovery failed: "
-//                                + saga.getSagaId()
-//                );
                 System.out.println(
-                        "Saga recovery failed: "
+                        "Automatic compensation recovery failed: "
+                                + saga.getSagaId()
+                );
+            }
+        }
+    }
+
+    private void recoverRefundPendingSagas() {
+
+        List<SagaInstance> sagas =
+                sagaInstanceRepository.findByCurrentStepAndStatus(
+                        SagaStep.REFUND_PENDING,
+                        SagaStatus.IN_PROGRESS
+                );
+
+        for (SagaInstance saga : sagas) {
+
+            if (saga.getRetryCount() >= MAX_RETRIES) {
+
+                saga.setStatus(SagaStatus.FAILED);
+
+                saga.setLastError(
+                        "Maximum refund retries exhausted. "
+                                + "Manual intervention required."
+                );
+
+                saga.setUpdatedAt(
+                        OffsetDateTime.now()
+                );
+
+                sagaInstanceRepository.save(saga);
+
+                continue;
+            }
+
+            try {
+
+                bookingSagaOrchestrator.retryCompensation(
+                        saga.getSagaId()
+                );
+
+            } catch (Exception ex) {
+
+                System.out.println(
+                        "Automatic refund recovery failed: "
                                 + saga.getSagaId()
                 );
             }
         }
     }
 }
-

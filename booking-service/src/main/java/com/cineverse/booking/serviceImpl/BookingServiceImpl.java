@@ -72,7 +72,14 @@ public class BookingServiceImpl implements BookingService {
 
         sagaOrchestrator.startSaga(saved.getBookingId());
 
-        return mapToResponse(saved);
+        // 5. Fetch latest booking state after Saga execution
+        Booking updatedBooking = bookingRepository
+                .findById(saved.getBookingId())
+                .orElseThrow(() ->
+                        new BookingNotFoundException(saved.getBookingId())
+                );
+
+        return mapToResponse(updatedBooking);
     }
 
     @Override

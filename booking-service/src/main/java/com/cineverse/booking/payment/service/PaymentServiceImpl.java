@@ -25,7 +25,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 //@Transactional
-public class PaymentServiceImpl implements PaymentService{
+public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentTransactionRepository transactionRepository;
@@ -89,7 +89,7 @@ public class PaymentServiceImpl implements PaymentService{
 
         transactionRepository.save(transaction);
 
-        payment.setStatus(PaymentStatus.FAILED);
+        payment.setStatus(PaymentStatus.SUCCESS);
         payment.setUpdatedAt(OffsetDateTime.now());
 
         paymentRepository.save(payment);
@@ -124,32 +124,6 @@ public class PaymentServiceImpl implements PaymentService{
 
         return mapToResponse(payment);
     }
-
-//    @Override
-//    public PaymentResponse refundPayment(UUID paymentId) {
-//
-//        Payment payment = paymentRepository.findById(paymentId)
-//                .orElseThrow(() ->
-//                        new RuntimeException("Payment not found")
-//                );
-//
-//        payment.setStatus(PaymentStatus.REFUND_PENDING);
-//        payment.setUpdatedAt(OffsetDateTime.now());
-//
-//        PaymentTransaction transaction =
-//                PaymentTransaction.builder()
-//                        .paymentId(payment.getPaymentId())
-//                        .amount(payment.getAmount())
-//                        .status(
-//                                PaymentTransactionStatus.REFUND_PENDING
-//                        )
-//                        .createdAt(OffsetDateTime.now())
-//                        .build();
-//
-//        transactionRepository.save(transaction);
-//
-//        return mapToResponse(paymentRepository.save(payment));
-//    }
 
     @Override
     @Transactional
@@ -193,7 +167,7 @@ public class PaymentServiceImpl implements PaymentService{
                 .paymentId(payment.getPaymentId())
                 .bookingId(bookingId)
                 .amount(payment.getAmount())
-                .status(RefundStatus.SUCCESS)
+                .status(RefundStatus.PENDING)
                 .reason("Booking compensation")
                 .createdAt(OffsetDateTime.now())
                 .updatedAt(OffsetDateTime.now())
@@ -225,6 +199,50 @@ public class PaymentServiceImpl implements PaymentService{
                 .paymentMethod(payment.getPaymentMethod())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public RefundResponse processPendingRefund(UUID bookingId) {
+
+        Refund refund = refundRepository
+                .findByBookingId(bookingId)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Refund not found for booking: " + bookingId
+                        )
+                );
+
+        // Already successful → idempotent response
+        if (refund.getStatus() == RefundStatus.SUCCESS) {
+            return RefundResponse.builder()
+                    .refundId(refund.getRefundId())
+                    .bookingId(refund.getBookingId())
+                    .amount(refund.getAmount())
+                    .status(refund.getStatus())
+                    .build();
+        }
+
+        // ==========================================
+        // TEST 4 - SIMULATE REFUND SUCCESS
+        // ==========================================
+
+        refund.setStatus(RefundStatus.SUCCESS);
+        refund.setUpdatedAt(OffsetDateTime.now());
+
+        refundRepository.save(refund);
+
+        System.out.println("===== REFUND SUCCESS =====");
+        System.out.println("Refund ID: " + refund.getRefundId());
+        System.out.println("Booking ID: " + bookingId);
+        System.out.println("Amount: " + refund.getAmount());
+
+        return RefundResponse.builder()
+                .refundId(refund.getRefundId())
+                .bookingId(bookingId)
+                .amount(refund.getAmount())
+                .status(RefundStatus.SUCCESS)
                 .build();
     }
 }
