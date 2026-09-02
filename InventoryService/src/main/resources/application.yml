@@ -12,6 +12,18 @@ spring:
       timeout: 500ms
       connect-timeout: 500ms
 
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    consumer:
+      group-id: inventory-seat-hold-group
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres?currentSchema=inventory_db
     username: postgres

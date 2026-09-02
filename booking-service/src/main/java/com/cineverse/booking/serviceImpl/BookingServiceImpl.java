@@ -31,6 +31,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingSeatRepository bookingSeatRepository;
 
     @Override
+    @Transactional
     public BookingResponse createBooking(
             CreateBookingRequest request) {
 

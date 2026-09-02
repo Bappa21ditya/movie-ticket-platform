@@ -20,7 +20,7 @@ public class SagaRecoveryService {
     private final SagaInstanceRepository sagaInstanceRepository;
     private final BookingSagaOrchestrator bookingSagaOrchestrator;
 
-    @Scheduled(fixedDelay = 30000)
+   // @Scheduled(fixedDelay = 30000)
     public void recoverSagas() {
 
         recoverCompensatingSagas();

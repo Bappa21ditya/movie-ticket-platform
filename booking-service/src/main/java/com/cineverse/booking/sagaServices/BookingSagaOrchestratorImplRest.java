@@ -1,11 +1,11 @@
 package com.cineverse.booking.sagaServices;
 
+
 import com.cineverse.booking.dto.sagaClient.CreateSeatHoldRequest;
 import com.cineverse.booking.entity.Booking;
 import com.cineverse.booking.entity.BookingSeat;
 import com.cineverse.booking.enums.BookingStatus;
 import com.cineverse.booking.exception.BookingNotFoundException;
-import com.cineverse.booking.kafka.dtos.PaymentRequestedEvent;
 import com.cineverse.booking.kafka.dtos.SeatHeldEvent;
 import com.cineverse.booking.kafka.dtos.SeatHoldRequestedEvent;
 import com.cineverse.booking.kafka.outbox.OutboxEvent;
@@ -31,8 +31,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,9 +40,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Primary
-public class BookingSagaOrchestratorImpl
-        implements BookingSagaOrchestrator {
+public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator {
 
     private final SagaInstanceRepository sagaInstanceRepository;
     private final BookingRepository bookingRepository;
@@ -114,325 +110,96 @@ public class BookingSagaOrchestratorImpl
                         .findByBookingBookingId(bookingId);
 
 
-        // CREATE OUTBOX EVENTS
+       //  Hold all seats
+
         for (BookingSeat bookingSeat : bookingSeats) {
 
-            OffsetDateTime expiresAt =
-                    OffsetDateTime.now()
-                            .plusMinutes(5);
-
-            // 1. Create domain event
-
-            SeatHoldRequestedEvent event =
-                    SeatHoldRequestedEvent.builder()
-                            .eventId(UUID.randomUUID())
-                            .sagaId(savedSaga.getSagaId())
-                            .bookingId(bookingId)
-                            .userId(booking.getUserId())
+            CreateSeatHoldRequest request =
+                    CreateSeatHoldRequest.builder()
                             .showSeatId(
                                     bookingSeat.getShowSeatId()
                             )
-                            .expiresAt(expiresAt)
-                            .occurredAt(
+                            .bookingId(bookingId)
+                            .userId(booking.getUserId())
+                            .expiresAt(
                                     OffsetDateTime.now()
+                                            .plusMinutes(5)
                             )
                             .build();
 
-            // 2. Serialize event to JSON
-
-            JsonNode payload;
-
-            try {
-
-                payload = objectMapper.valueToTree(event);
-                       // objectMapper.writeValueAsString(event);
-
-            } catch (IllegalArgumentException ex){
-                throw new RuntimeException(
-                        "Failed to serialize SeatHoldRequestedEvent",
-                        ex
-                );
-            }
-
-            System.out.println("Payload = " + payload);
-
-            // 3. Save event in Outbox
-
-            OutboxEvent outboxEvent =
-                    OutboxEvent.builder()
-                            .eventId(event.getEventId())
-                            .aggregateId(bookingId)
-                            .aggregateType("BOOKING")
-                            .eventType("SEAT_HOLD_REQUESTED")
-                            .payload(payload)
-                            .status(OutboxStatus.PENDING)
-                            .retryCount(0)
-                            .createdAt(OffsetDateTime.now())
-                            .build();
-
-
-          //  outboxEventRepository.save(outboxEvent);
-            outboxEventRepository.saveAndFlush(outboxEvent);
-
-            System.out.println(
-                    "OUTBOX SAVED = " + outboxEvent.getEventId()
-            );
-        }
-        System.out.println("===== END SAGA =====");
-
-//
-//
-//        // STEP 3 - PAYMENT IN PROGRESS
-//
-//
-//        savedSaga.setCurrentStep(
-//                SagaStep.PAYMENT_IN_PROGRESS
-//        );
-//
-//        savedSaga.setUpdatedAt(
-//                OffsetDateTime.now()
-//        );
-//
-//        sagaInstanceRepository.save(savedSaga);
-//
-//
-//        CreatePaymentRequest paymentRequest =
-//                CreatePaymentRequest.builder()
-//                        .bookingId(bookingId)
-//                        .amount(booking.getTotalAmount())
-//                        .paymentMethod(PaymentMethod.UPI)
-//                        .build();
-//
-//
-//        PaymentResponse paymentResponse =
-//                paymentService.createPayment(
-//                        paymentRequest
-//                );
-//
-//
-//        // PAYMENT SUCCESS
-//
-//        if (paymentResponse.getStatus()
-//                == PaymentStatus.SUCCESS) {
-//
-//            handlePaymentSuccess(
-//                    savedSaga,
-//                    booking,
-//                    bookingSeats
-//            );
-//
-//        }
-//
-//        // PAYMENT FAILED
-//
-//        else {
-//
-//            handlePaymentFailure(
-//                    savedSaga,
-//                    booking,
-//                    bookingSeats
-//            );
-//        }
-    }
-
-    // PAYMENT SUCCESS FLOW
-
-    @Override
-    @Transactional
-    public void handleSeatHeld(SeatHeldEvent event) {
-
-        System.out.println("===== HANDLE SEAT HELD =====");
-
-        System.out.println(
-                "Saga ID = " + event.getSagaId()
-        );
-
-        System.out.println(
-                "Booking ID = " + event.getBookingId()
-        );
-
-        System.out.println(
-                "ShowSeat ID = " + event.getShowSeatId()
-        );
-
-        System.out.println(
-                "Hold ID = " + event.getHoldId()
-        );
-
-        SagaInstance saga =
-                sagaInstanceRepository
-                        .findById(event.getSagaId())
-                        .orElseThrow(() ->
-                                new IllegalStateException(
-                                        "Saga not found: "
-                                                + event.getSagaId()
-                                )
-                        );
-
-        Booking booking =
-                bookingRepository
-                        .findById(event.getBookingId())
-                        .orElseThrow(() ->
-                                new BookingNotFoundException(
-                                        event.getBookingId()
-                                )
-                        );
-
-        // VALIDATE SAGA STATE
-
-        if (saga.getStatus() != SagaStatus.IN_PROGRESS) {
-
-            System.out.println(
-                    "Ignoring SEAT_HELD because Saga is not IN_PROGRESS"
-            );
-
-            return;
+            inventoryClient.createSeatHold(request);
         }
 
-        if (saga.getCurrentStep() != SagaStep.HOLDING_SEAT) {
 
-            System.out.println(
-                    "Ignoring SEAT_HELD because Saga is currently at "
-                            + saga.getCurrentStep()
-            );
 
-            return;
-        }
 
-        // SEAT HELD
-        System.out.println("1. BEFORE Seat held ");
-        saga.setCurrentStep(
+       //  STEP 2 - SEAT HELD
+
+        savedSaga.setCurrentStep(
                 SagaStep.SEAT_HELD
         );
-        System.out.println("2. BEFORE date update");
-        saga.setUpdatedAt(
+
+        savedSaga.setUpdatedAt(
                 OffsetDateTime.now()
         );
-        System.out.println("3. BEFORE SAGA SAVE");
-        SagaInstance saved =sagaInstanceRepository.save(saga);
 
-        System.out.println(
-                "4. AFTER SAGA SAVE, STEP = "
-                        + saved.getCurrentStep()
-        );
+        sagaInstanceRepository.save(savedSaga);
 
-        System.out.println(
-                "Saga moved to SEAT_HELD"
-        );
 
-        // NEXT STEP - PAYMENT
+        // STEP 3 - PAYMENT IN PROGRESS
 
-        saga.setCurrentStep(
+
+        savedSaga.setCurrentStep(
                 SagaStep.PAYMENT_IN_PROGRESS
         );
 
-        saga.setUpdatedAt(
+        savedSaga.setUpdatedAt(
                 OffsetDateTime.now()
         );
 
-        sagaInstanceRepository.save(saga);
+        sagaInstanceRepository.save(savedSaga);
 
-        System.out.println(
-                "Saga moved to PAYMENT_IN_PROGRESS"
-        );
 
-        // CREATE PAYMENT
-
-        PaymentRequestedEvent paymentEvent =
-                PaymentRequestedEvent.builder()
-                        .eventId(UUID.randomUUID())
-                        .sagaId(saga.getSagaId())
-                        .bookingId(event.getBookingId())
-                        .userId(event.getUserId())
+        CreatePaymentRequest paymentRequest =
+                CreatePaymentRequest.builder()
+                        .bookingId(bookingId)
                         .amount(booking.getTotalAmount())
                         .paymentMethod(PaymentMethod.UPI)
-                        .occurredAt(OffsetDateTime.now())
                         .build();
 
-        JsonNode payload =
-                objectMapper.valueToTree(paymentEvent);
+
+        PaymentResponse paymentResponse =
+                paymentService.createPayment(
+                        paymentRequest
+                );
 
 
-        OutboxEvent outboxEvent =
-                OutboxEvent.builder()
-                        .eventId(paymentEvent.getEventId())
-                        .aggregateId(event.getBookingId())
-                        .aggregateType("BOOKING")
-                        .eventType("PAYMENT_REQUESTED")
-                        .payload(payload)
-                        .status(OutboxStatus.PENDING)
-                        .retryCount(0)
-                        .createdAt(OffsetDateTime.now())
-                        .build();
+        // PAYMENT SUCCESS
 
-        outboxEventRepository.saveAndFlush(
-                outboxEvent
-        );
+        if (paymentResponse.getStatus()
+                == PaymentStatus.SUCCESS) {
 
-        System.out.println(
-                "PAYMENT_REQUESTED OUTBOX SAVED = "
-                        + paymentEvent.getEventId()
-        );
+            handlePaymentSuccess(
+                    savedSaga,
+                    booking,
+                    bookingSeats
+            );
 
-//        CreatePaymentRequest paymentRequest =
-//                CreatePaymentRequest.builder()
-//                        .bookingId(event.getBookingId())
-//                        .amount(booking.getTotalAmount())
-//                        .paymentMethod(PaymentMethod.UPI)
-//                        .build();
-//
-//        PaymentResponse paymentResponse =
-//                paymentService.createPayment(
-//                        paymentRequest
-//                );
-//
-//        System.out.println(
-//                "Payment status = "
-//                        + paymentResponse.getStatus()
-//        );
+        }
 
-        // PAYMENT RESULT
+        // PAYMENT FAILED
 
-//        if (paymentResponse.getStatus()
-//                == PaymentStatus.SUCCESS) {
-//
-//            System.out.println(
-//                    "PAYMENT SUCCESS"
-//            );
-//
-//            List<BookingSeat> bookingSeats =
-//                    bookingSeatRepository
-//                            .findByBookingBookingId(
-//                                    event.getBookingId()
-//                            );
-//
-//            handlePaymentSuccess(
-//                    saga,
-//                    booking,
-//                    bookingSeats
-//            );
-//
-//        } else {
-//
-//            System.out.println(
-//                    "PAYMENT FAILED"
-//            );
-//
-//            List<BookingSeat> bookingSeats =
-//                    bookingSeatRepository
-//                            .findByBookingBookingId(
-//                                    event.getBookingId()
-//                            );
-//
-//            handlePaymentFailure(
-//                    saga,
-//                    booking,
-//                    bookingSeats
-//            );
-//        }
-//
-//        System.out.println("===== END HANDLE SEAT HELD =====");
+        else {
+
+            handlePaymentFailure(
+                    savedSaga,
+                    booking,
+                    bookingSeats
+            );
+        }
     }
+
+    // PAYMENT SUCCESS FLOW
 
     private void handlePaymentSuccess(
             SagaInstance saga,
@@ -498,73 +265,43 @@ public class BookingSagaOrchestratorImpl
              */
 
 
-                booking.setStatus(
-                        BookingStatus.CONFIRMED
+            booking.setStatus(
+                    BookingStatus.CONFIRMED
+            );
+
+            booking.setUpdatedAt(
+                    OffsetDateTime.now()
+            );
+
+            bookingRepository.save(booking);
+
+            // TEMPORARY FAILURE SIMULATION
+            if (simulateBookingFailure) {
+                throw new RuntimeException(
+                        "Simulated booking update failure"
                 );
-
-                booking.setUpdatedAt(
-                        OffsetDateTime.now()
-                );
-
-                bookingRepository.save(booking);
-
-                // TEMPORARY FAILURE SIMULATION
-                if (simulateBookingFailure) {
-                    throw new RuntimeException(
-                            "Simulated booking update failure"
-                    );
-                }
-
-            } catch (Exception ex) {
-
-                // Booking confirmation failed
-                markBookingFailed(booking);
-
-                // Start compensation
-                saga.setCurrentStep(
-                        SagaStep.COMPENSATING
-                );
-
-                saga.setStatus(
-                        SagaStatus.IN_PROGRESS
-                );
-
-                saga.setCompensationType(
-                        CompensationType.BOOKING_FAILED_AFTER_PAYMENT
-                );
-
-                saga.setLastError(
-                        ex.getMessage()
-                );
-
-                saga.setUpdatedAt(
-                        OffsetDateTime.now()
-                );
-
-                sagaInstanceRepository.save(saga);
-
-                // Try compensation immediately
-                compensateAfterBookingFailure(
-                        saga,
-                        booking,
-                        bookingSeats
-                );
-
-            return;
             }
 
-// STEP 7 - SAGA COMPLETED
+        } catch (Exception ex) {
 
+            // Booking confirmation failed
+            markBookingFailed(booking);
+
+            // Start compensation
             saga.setCurrentStep(
-                    SagaStep.COMPLETED
+                    SagaStep.COMPENSATING
             );
 
             saga.setStatus(
-                    SagaStatus.COMPLETED
+                    SagaStatus.IN_PROGRESS
             );
 
-            saga.setCompletedAt(
-                    OffsetDateTime.now()
+            saga.setCompensationType(
+                    CompensationType.BOOKING_FAILED_AFTER_PAYMENT
+            );
+
+            saga.setLastError(
+                    ex.getMessage()
             );
 
             saga.setUpdatedAt(
@@ -572,6 +309,36 @@ public class BookingSagaOrchestratorImpl
             );
 
             sagaInstanceRepository.save(saga);
+
+            // Try compensation immediately
+            compensateAfterBookingFailure(
+                    saga,
+                    booking,
+                    bookingSeats
+            );
+
+            return;
+        }
+
+// STEP 7 - SAGA COMPLETED
+
+        saga.setCurrentStep(
+                SagaStep.COMPLETED
+        );
+
+        saga.setStatus(
+                SagaStatus.COMPLETED
+        );
+
+        saga.setCompletedAt(
+                OffsetDateTime.now()
+        );
+
+        saga.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        sagaInstanceRepository.save(saga);
     }
 
 
@@ -678,7 +445,7 @@ public class BookingSagaOrchestratorImpl
         }
     }
 
-// COMPENSATE / RECOVER SAGA
+    // COMPENSATE / RECOVER SAGA
     @Override
     @Transactional
     public void retryCompensation(UUID sagaId) {
@@ -1021,6 +788,10 @@ public class BookingSagaOrchestratorImpl
         }
     }
 
+    @Override
+    public void handleSeatHeld(SeatHeldEvent event) {
+
+    }
 
 
     private void compensateAfterBookingFailure(
@@ -1200,4 +971,5 @@ public class BookingSagaOrchestratorImpl
         sagaInstanceRepository.save(saga);
     }
 }
+
 

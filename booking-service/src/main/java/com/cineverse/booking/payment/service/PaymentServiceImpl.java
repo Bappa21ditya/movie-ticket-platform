@@ -35,6 +35,8 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponse createPayment(
             CreatePaymentRequest request) {
 
+
+        System.out.println("we are inside Create Payment....");
         Payment payment = paymentRepository
                 .findByBookingId(request.getBookingId())
                 .orElseGet(() -> {
@@ -48,6 +50,8 @@ public class PaymentServiceImpl implements PaymentService {
                             .updatedAt(OffsetDateTime.now())
                             .build();
 
+
+                    System.out.println("Payemt is working ....");
                     return paymentRepository.save(newPayment);
                 });
 
