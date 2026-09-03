@@ -6,6 +6,7 @@ import com.cineverse.booking.entity.BookingSeat;
 import com.cineverse.booking.enums.BookingStatus;
 import com.cineverse.booking.exception.BookingNotFoundException;
 import com.cineverse.booking.kafka.dtos.PaymentRequestedEvent;
+import com.cineverse.booking.kafka.dtos.PaymentSucceededEvent;
 import com.cineverse.booking.kafka.dtos.SeatHeldEvent;
 import com.cineverse.booking.kafka.dtos.SeatHoldRequestedEvent;
 import com.cineverse.booking.kafka.outbox.OutboxEvent;
@@ -432,6 +433,201 @@ public class BookingSagaOrchestratorImpl
 //        }
 //
 //        System.out.println("===== END HANDLE SEAT HELD =====");
+    }
+
+    @Override
+    @Transactional
+    public void handlePaymentSucceeded(
+            PaymentSucceededEvent event) {
+
+        System.out.println(
+                "===== HANDLE PAYMENT SUCCEEDED ====="
+        );
+
+        System.out.println(
+                "Saga ID = " + event.getSagaId()
+        );
+
+        System.out.println(
+                "Booking ID = " + event.getBookingId()
+        );
+
+        // 1. FIND SAGA
+        SagaInstance saga =
+                sagaInstanceRepository
+                        .findById(event.getSagaId())
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Saga not found: "
+                                                + event.getSagaId()
+                                )
+                        );
+
+        // 2. FIND BOOKING
+        Booking booking =
+                bookingRepository
+                        .findById(event.getBookingId())
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Booking not found: "
+                                                + event.getBookingId()
+                                )
+                        );
+
+        // 3. VALIDATE SAGA STATE
+        if (saga.getCurrentStep()
+                != SagaStep.PAYMENT_IN_PROGRESS) {
+
+            System.out.println(
+                    "Ignoring PAYMENT_SUCCEEDED. "
+                            + "Current saga step = "
+                            + saga.getCurrentStep()
+            );
+
+            return;
+        }
+
+        // 4. PAYMENT SUCCESS
+        saga.setCurrentStep(
+                SagaStep.PAYMENT_SUCCESS
+        );
+
+        saga.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        sagaInstanceRepository.save(saga);
+
+        System.out.println(
+                "Saga transitioned to PAYMENT_SUCCEEDED"
+        );
+
+
+        // STEP 5 - GET BOOKING SEATS
+
+        List<BookingSeat> bookingSeats =
+                bookingSeatRepository
+                        .findByBookingBookingId(
+                                booking.getBookingId()
+                        );
+
+        System.out.println(
+                "Booking seats = "
+                        + bookingSeats.size()
+        );
+
+        // STEP 6 - CONFIRM SEATS IN INVENTORY
+
+        try {
+
+            for (BookingSeat bookingSeat : bookingSeats) {
+
+                System.out.println(
+                        "Confirming ShowSeat = "
+                                + bookingSeat.getShowSeatId()
+                );
+
+                inventoryClient.confirmSeat(
+                        bookingSeat.getShowSeatId(),
+                        booking.getBookingId()
+                );
+            }
+
+            System.out.println(
+                    "All seats confirmed in Inventory"
+            );
+
+        } catch (Exception ex) {
+
+            System.err.println(
+                    "Seat confirmation failed"
+            );
+
+            ex.printStackTrace();
+
+            // START COMPENSATION
+
+            saga.setCurrentStep(
+                    SagaStep.COMPENSATING
+            );
+
+            saga.setStatus(
+                    SagaStatus.IN_PROGRESS
+            );
+
+            saga.setCompensationType(
+                    CompensationType.BOOKING_FAILED_AFTER_PAYMENT
+            );
+
+            saga.setLastError(
+                    ex.getMessage()
+            );
+
+            saga.setUpdatedAt(
+                    OffsetDateTime.now()
+            );
+
+            sagaInstanceRepository.saveAndFlush(saga);
+
+            // Compensation logic can be connected here
+            // after we verify the happy path.
+
+            return;
+        }
+
+        // STEP 7 - CONFIRM BOOKING
+
+        saga.setCurrentStep(
+                SagaStep.CONFIRMING_BOOKING
+        );
+
+        saga.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        sagaInstanceRepository.saveAndFlush(saga);
+
+        System.out.println(
+                "Saga transitioned to CONFIRMING_BOOKING"
+        );
+
+        booking.setStatus(
+                BookingStatus.CONFIRMED
+        );
+
+        booking.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        bookingRepository.saveAndFlush(booking);
+
+        System.out.println(
+                "Booking transitioned to CONFIRMED"
+        );
+
+        // STEP 8 - COMPLETE SAGA
+
+        saga.setCurrentStep(
+                SagaStep.COMPLETED
+        );
+
+        saga.setStatus(
+                SagaStatus.COMPLETED
+        );
+
+        saga.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        sagaInstanceRepository.saveAndFlush(saga);
+
+        System.out.println(
+                "Saga transitioned to COMPLETED"
+        );
+
+        System.out.println(
+                "===== END HANDLE PAYMENT SUCCEEDED ====="
+        );
     }
 
     private void handlePaymentSuccess(

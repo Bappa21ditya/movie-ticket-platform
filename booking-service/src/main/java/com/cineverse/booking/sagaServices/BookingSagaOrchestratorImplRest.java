@@ -6,6 +6,7 @@ import com.cineverse.booking.entity.Booking;
 import com.cineverse.booking.entity.BookingSeat;
 import com.cineverse.booking.enums.BookingStatus;
 import com.cineverse.booking.exception.BookingNotFoundException;
+import com.cineverse.booking.kafka.dtos.PaymentSucceededEvent;
 import com.cineverse.booking.kafka.dtos.SeatHeldEvent;
 import com.cineverse.booking.kafka.dtos.SeatHoldRequestedEvent;
 import com.cineverse.booking.kafka.outbox.OutboxEvent;
@@ -790,6 +791,11 @@ public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator 
 
     @Override
     public void handleSeatHeld(SeatHeldEvent event) {
+
+    }
+
+    @Override
+    public void handlePaymentSucceeded(PaymentSucceededEvent event) {
 
     }
 

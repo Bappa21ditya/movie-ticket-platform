@@ -120,6 +120,10 @@ public class OutboxPublisher {
             case "PAYMENT_REQUESTED" ->
                     "booking.payment";
 
+            case "PAYMENT_SUCCEEDED" ->
+                    "payment.events";
+
+
             default ->
                     throw new IllegalArgumentException(
                             "Unknown event type: " + eventType
