@@ -123,6 +123,15 @@ public class OutboxPublisher {
             case "PAYMENT_SUCCEEDED" ->
                     "payment.events";
 
+            case "SEAT_CONFIRM_REQUESTED" ->
+                    "booking.seat-confirm";
+
+            case "RELEASE_SEATS_REQUESTED" ->
+                    "release-seats-requested";
+
+            case "REFUND_REQUESTED" ->
+                    "booking.refund-requested";
+
 
             default ->
                     throw new IllegalArgumentException(

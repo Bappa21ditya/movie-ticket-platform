@@ -260,6 +260,17 @@ public class SeatHoldServiceImpl implements SeatHoldService {
         showSeat.setStatus(SeatStatus.BOOKED);
 
         seatHold.setStatus(HoldStatus.CONFIRMED);
+
+        showSeatRepository.save(showSeat);
+
+        seatHoldRepository.save(seatHold);
+
+        System.out.println(
+                "Seat confirmed. ShowSeat ID = "
+                        + showSeatId
+                        + ", Booking ID = "
+                        + bookingId
+        );
     }
 
     public boolean releaseSeat(Long showSeatId) {

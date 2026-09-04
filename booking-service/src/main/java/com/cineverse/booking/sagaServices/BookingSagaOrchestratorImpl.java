@@ -5,10 +5,7 @@ import com.cineverse.booking.entity.Booking;
 import com.cineverse.booking.entity.BookingSeat;
 import com.cineverse.booking.enums.BookingStatus;
 import com.cineverse.booking.exception.BookingNotFoundException;
-import com.cineverse.booking.kafka.dtos.PaymentRequestedEvent;
-import com.cineverse.booking.kafka.dtos.PaymentSucceededEvent;
-import com.cineverse.booking.kafka.dtos.SeatHeldEvent;
-import com.cineverse.booking.kafka.dtos.SeatHoldRequestedEvent;
+import com.cineverse.booking.kafka.dtos.*;
 import com.cineverse.booking.kafka.outbox.OutboxEvent;
 import com.cineverse.booking.kafka.outbox.OutboxEventRepository;
 import com.cineverse.booking.kafka.outbox.OutboxStatus;
@@ -146,9 +143,9 @@ public class BookingSagaOrchestratorImpl
             try {
 
                 payload = objectMapper.valueToTree(event);
-                       // objectMapper.writeValueAsString(event);
+                // objectMapper.writeValueAsString(event);
 
-            } catch (IllegalArgumentException ex){
+            } catch (IllegalArgumentException ex) {
                 throw new RuntimeException(
                         "Failed to serialize SeatHoldRequestedEvent",
                         ex
@@ -172,7 +169,7 @@ public class BookingSagaOrchestratorImpl
                             .build();
 
 
-          //  outboxEventRepository.save(outboxEvent);
+            //  outboxEventRepository.save(outboxEvent);
             outboxEventRepository.saveAndFlush(outboxEvent);
 
             System.out.println(
@@ -310,7 +307,7 @@ public class BookingSagaOrchestratorImpl
                 OffsetDateTime.now()
         );
         System.out.println("3. BEFORE SAGA SAVE");
-        SagaInstance saved =sagaInstanceRepository.save(saga);
+        SagaInstance saved = sagaInstanceRepository.save(saga);
 
         System.out.println(
                 "4. AFTER SAGA SAVE, STEP = "
@@ -511,41 +508,385 @@ public class BookingSagaOrchestratorImpl
                                 booking.getBookingId()
                         );
 
+
+        if (bookingSeats.isEmpty()) {
+
+            throw new IllegalStateException(
+                    "No booking seats found for booking: "
+                            + booking.getBookingId()
+            );
+        }
+
         System.out.println(
                 "Booking seats = "
                         + bookingSeats.size()
         );
 
-        // STEP 6 - CONFIRM SEATS IN INVENTORY
+        List<Long> showSeatIds =
+                bookingSeats.stream()
+                        .map(BookingSeat::getShowSeatId)
+                        .toList();
+
+        System.out.println(
+                "Seats to confirm = "
+                        + showSeatIds
+        );
+
+        // STEP  6-TRANSITION SAGA -> CONFIRMING_BOOKING
+
+
+        saga.setCurrentStep(
+                SagaStep.CONFIRMING_BOOKING
+        );
+
+        saga.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        sagaInstanceRepository.save(saga);
+
+        ///  CREATE SEAT CONFIRM REQUEST EVENT
+
+
+        SeatConfirmRequestedEvent confirmEvent =
+                SeatConfirmRequestedEvent.builder()
+
+                        .eventId(
+                                UUID.randomUUID()
+                        )
+
+                        .sagaId(
+                                saga.getSagaId()
+                        )
+
+                        .bookingId(
+                                booking.getBookingId()
+                        )
+
+                        .showSeatIds(
+                                showSeatIds
+                        )
+
+                        .occurredAt(
+                                OffsetDateTime.now()
+                        )
+
+                        .build();
+
+
+        // ============================================================
+        // 8. SAVE TO OUTBOX
+        // ============================================================
+
+        JsonNode payload =
+                objectMapper.valueToTree(confirmEvent);
+        OutboxEvent outboxEvent =
+                OutboxEvent.builder()
+
+                        .eventId(
+                                confirmEvent.getEventId()
+                        )
+
+                        .aggregateId(
+                                booking.getBookingId()
+                        )
+
+                        .aggregateType(
+                                "BOOKING"
+                        )
+
+                        .eventType(
+                                "SEAT_CONFIRM_REQUESTED"
+                        )
+
+                        .payload(
+                                payload)
+
+                        .status(
+                                OutboxStatus.PENDING
+                        )
+
+                        .retryCount(
+                                0
+                        )
+
+                        .createdAt(
+                                OffsetDateTime.now()
+                        )
+
+                        .build();
+
+
+        outboxEventRepository.save(outboxEvent);
+
+        System.out.println(
+                "SEAT_CONFIRM_REQUESTED OUTBOX SAVED = "
+                        + confirmEvent.getEventId()
+        );
+
+
+//        try {
+//
+//            for (BookingSeat bookingSeat : bookingSeats) {
+//
+//                System.out.println(
+//                        "Confirming ShowSeat = "
+//                                + bookingSeat.getShowSeatId()
+//                );
+//
+//                inventoryClient.confirmSeat(
+//                        bookingSeat.getShowSeatId(),
+//                        booking.getBookingId()
+//                );
+//            }
+//
+//            System.out.println(
+//                    "All seats confirmed in Inventory"
+//            );
+//
+//        } catch (Exception ex) {
+//
+//            System.err.println(
+//                    "Seat confirmation failed"
+//            );
+//
+//            ex.printStackTrace();
+//
+//            // START COMPENSATION
+//
+//            saga.setCurrentStep(
+//                    SagaStep.COMPENSATING
+//            );
+//
+//            saga.setStatus(
+//                    SagaStatus.IN_PROGRESS
+//            );
+//
+//            saga.setCompensationType(
+//                    CompensationType.BOOKING_FAILED_AFTER_PAYMENT
+//            );
+//
+//            saga.setLastError(
+//                    ex.getMessage()
+//            );
+//
+//            saga.setUpdatedAt(
+//                    OffsetDateTime.now()
+//            );
+//
+//            sagaInstanceRepository.saveAndFlush(saga);
+//
+//            // Compensation logic can be connected here
+//            // after we verify the happy path.
+//
+//            return;
+//        }
+//
+//        // STEP 7 - CONFIRM BOOKING
+//
+//        saga.setCurrentStep(
+//                SagaStep.CONFIRMING_BOOKING
+//        );
+//
+//        saga.setUpdatedAt(
+//                OffsetDateTime.now()
+//        );
+//
+//        sagaInstanceRepository.saveAndFlush(saga);
+//
+//        System.out.println(
+//                "Saga transitioned to CONFIRMING_BOOKING"
+//        );
+//
+//        booking.setStatus(
+//                BookingStatus.CONFIRMED
+//        );
+//
+//        booking.setUpdatedAt(
+//                OffsetDateTime.now()
+//        );
+//
+//        bookingRepository.saveAndFlush(booking);
+//
+//        System.out.println(
+//                "Booking transitioned to CONFIRMED"
+//        );
+//
+//        // STEP 8 - COMPLETE SAGA
+//
+//        saga.setCurrentStep(
+//                SagaStep.COMPLETED
+//        );
+//
+//        saga.setStatus(
+//                SagaStatus.COMPLETED
+//        );
+//
+//        saga.setUpdatedAt(
+//                OffsetDateTime.now()
+//        );
+//
+//        sagaInstanceRepository.saveAndFlush(saga);
+//
+//        System.out.println(
+//                "Saga transitioned to COMPLETED"
+//        );
+//
+//        System.out.println(
+//                "===== END HANDLE PAYMENT SUCCEEDED ====="
+//        );
+        System.out.println(
+                "===== END HANDLE PAYMENT SUCCEEDED ====="
+        );
+    }
+
+
+    @Transactional
+    public void handleSeatsConfirmed(
+            SeatsConfirmedEvent event) {
+
+        System.out.println(
+                "===== HANDLE SEATS CONFIRMED ====="
+        );
+
+        System.out.println(
+                "Saga ID = "
+                        + event.getSagaId()
+        );
+
+        System.out.println(
+                "Booking ID = "
+                        + event.getBookingId()
+        );
+        // 1. FIND SAGA
+
+        SagaInstance saga =
+                sagaInstanceRepository
+                        .findById(event.getSagaId())
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Saga not found: "
+                                                + event.getSagaId()
+                                )
+                        );
+
+        // 2. FIND BOOKING
+
+        Booking booking =
+                bookingRepository
+                        .findById(event.getBookingId())
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Booking not found: "
+                                                + event.getBookingId()
+                                )
+                        );
+
+
+        // 3. VALIDATE SAGA STATE
+
+        if (saga.getCurrentStep()
+                != SagaStep.CONFIRMING_BOOKING) {
+
+            System.out.println(
+                    "Ignoring SEATS_CONFIRMED. "
+                            + "Current saga step = "
+                            + saga.getCurrentStep()
+            );
+
+            return;
+        }
+
+        // 4. VALIDATE SEATS
+
+        if (event.getShowSeatIds() == null
+                || event.getShowSeatIds().isEmpty()) {
+
+            throw new IllegalStateException(
+                    "No confirmed seats received for booking: "
+                            + event.getBookingId()
+            );
+        }
+
+
+        System.out.println(
+                "Confirmed seats = "
+                        + event.getShowSeatIds()
+        );
+
+        boolean simulateBookingFailure = true;
 
         try {
 
-            for (BookingSeat bookingSeat : bookingSeats) {
+            booking.setStatus(
+                    BookingStatus.CONFIRMED
+            );
 
-                System.out.println(
-                        "Confirming ShowSeat = "
-                                + bookingSeat.getShowSeatId()
-                );
+            booking.setUpdatedAt(
+                    OffsetDateTime.now()
+            );
 
-                inventoryClient.confirmSeat(
-                        bookingSeat.getShowSeatId(),
-                        booking.getBookingId()
+            bookingRepository.saveAndFlush(booking);
+
+            // TEMPORARY FAILURE SIMULATION
+            if (simulateBookingFailure) {
+
+                throw new RuntimeException(
+                        "SIMULATED BOOKING CONFIRMATION FAILURE"
                 );
             }
 
             System.out.println(
-                    "All seats confirmed in Inventory"
+                    "Booking transitioned to CONFIRMED"
+            );
+
+            // 6. SAGA → COMPLETED
+
+            saga.setCurrentStep(
+                    SagaStep.COMPLETED
+            );
+
+            saga.setStatus(
+                    SagaStatus.COMPLETED
+            );
+
+            saga.setCompletedAt(
+                    OffsetDateTime.now()
+            );
+
+            saga.setUpdatedAt(
+                    OffsetDateTime.now()
+            );
+
+            sagaInstanceRepository.saveAndFlush(saga);
+
+            System.out.println(
+                    "Saga transitioned to COMPLETED"
             );
 
         } catch (Exception ex) {
 
-            System.err.println(
-                    "Seat confirmation failed"
+            System.out.println(
+                    "===== BOOKING CONFIRMATION FAILED ====="
             );
 
-            ex.printStackTrace();
+            System.out.println(
+                    "Reason = " + ex.getMessage()
+            );
 
-            // START COMPENSATION
+            // Mark booking as FAILED
+
+            booking.setStatus(
+                    BookingStatus.FAILED
+            );
+
+            booking.setUpdatedAt(
+                    OffsetDateTime.now()
+            );
+
+            bookingRepository.saveAndFlush(booking);
+
+            // Start compensation
 
             saga.setCurrentStep(
                     SagaStep.COMPENSATING
@@ -569,64 +910,126 @@ public class BookingSagaOrchestratorImpl
 
             sagaInstanceRepository.saveAndFlush(saga);
 
-            // Compensation logic can be connected here
-            // after we verify the happy path.
+            System.out.println(
+                    "Saga moved to COMPENSATING"
+            );
 
+            // Compensation
+
+            compensateAfterBookingFailure(
+                    saga,
+                    booking,
+                    bookingSeatRepository
+                            .findByBookingBookingId(
+                                    booking.getBookingId()
+                            )
+            );
+        }
+    }
+
+    @Override
+    @Transactional
+    public void handleSeatsReleased(
+            SeatsReleasedEvent event) {
+
+        SagaInstance saga =
+                sagaInstanceRepository
+                        .findById(event.getSagaId())
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Saga not found: "
+                                                + event.getSagaId()
+                                )
+                        );
+
+        // Idempotency
+        if (saga.getStatus() != SagaStatus.IN_PROGRESS) {
             return;
         }
 
-        // STEP 7 - CONFIRM BOOKING
+        // Make sure this event belongs to the expected compensation step
+        if (saga.getCurrentStep() != SagaStep.COMPENSATING) {
+            throw new IllegalStateException(
+                    "Saga is not in COMPENSATING state"
+            );
+        }
+
+        System.out.println(
+                "========== SEATS RELEASED EVENT RECEIVED =========="
+        );
+
+        System.out.println(
+                "Saga ID = " + event.getSagaId()
+        );
+
+        System.out.println(
+                "Booking ID = " + event.getBookingId()
+        );
+
+        System.out.println(
+                "Released Seats = " + event.getShowSeatIds()
+        );
+
+        // 1. Move Saga to REFUNDING
 
         saga.setCurrentStep(
-                SagaStep.CONFIRMING_BOOKING
+                SagaStep.REFUND_PENDING
         );
 
         saga.setUpdatedAt(
                 OffsetDateTime.now()
         );
 
-        sagaInstanceRepository.saveAndFlush(saga);
+        sagaInstanceRepository.save(saga);
+
+
+        // 2. Create REFUND_REQUESTED event
+
+        RefundRequestedEvent refundEvent =
+                RefundRequestedEvent.builder()
+                        .eventId(UUID.randomUUID())
+                        .sagaId(event.getSagaId())
+                        .bookingId(event.getBookingId())
+                        .occurredAt(OffsetDateTime.now())
+                        .build();
+
+
+        // 3. Save REFUND_REQUESTED to Outbox
+
+        OutboxEvent outboxEvent =
+                OutboxEvent.builder()
+                        .eventId(
+                                refundEvent.getEventId()
+                        )
+                        .eventType(
+                                "REFUND_REQUESTED"
+                        )
+                        .aggregateType("REFUND_REQUESTED")
+                        .aggregateId(
+                                refundEvent
+                                        .getBookingId()
+                        )
+                        .payload(
+                                objectMapper.valueToTree(
+                                        refundEvent
+                                )
+                        )
+                        .status(
+                                OutboxStatus.PENDING
+                        )
+                        .retryCount(0)
+                        .createdAt(
+                                OffsetDateTime.now()
+                        )
+                        .build();
+
+        outboxEventRepository.save(
+                outboxEvent
+        );
 
         System.out.println(
-                "Saga transitioned to CONFIRMING_BOOKING"
-        );
-
-        booking.setStatus(
-                BookingStatus.CONFIRMED
-        );
-
-        booking.setUpdatedAt(
-                OffsetDateTime.now()
-        );
-
-        bookingRepository.saveAndFlush(booking);
-
-        System.out.println(
-                "Booking transitioned to CONFIRMED"
-        );
-
-        // STEP 8 - COMPLETE SAGA
-
-        saga.setCurrentStep(
-                SagaStep.COMPLETED
-        );
-
-        saga.setStatus(
-                SagaStatus.COMPLETED
-        );
-
-        saga.setUpdatedAt(
-                OffsetDateTime.now()
-        );
-
-        sagaInstanceRepository.saveAndFlush(saga);
-
-        System.out.println(
-                "Saga transitioned to COMPLETED"
-        );
-
-        System.out.println(
-                "===== END HANDLE PAYMENT SUCCEEDED ====="
+                "REFUND_REQUESTED OUTBOX SAVED = "
+                        + refundEvent.getEventId()
         );
     }
 
@@ -694,73 +1097,43 @@ public class BookingSagaOrchestratorImpl
              */
 
 
-                booking.setStatus(
-                        BookingStatus.CONFIRMED
+            booking.setStatus(
+                    BookingStatus.CONFIRMED
+            );
+
+            booking.setUpdatedAt(
+                    OffsetDateTime.now()
+            );
+
+            bookingRepository.save(booking);
+
+            // TEMPORARY FAILURE SIMULATION
+            if (simulateBookingFailure) {
+                throw new RuntimeException(
+                        "Simulated booking update failure"
                 );
-
-                booking.setUpdatedAt(
-                        OffsetDateTime.now()
-                );
-
-                bookingRepository.save(booking);
-
-                // TEMPORARY FAILURE SIMULATION
-                if (simulateBookingFailure) {
-                    throw new RuntimeException(
-                            "Simulated booking update failure"
-                    );
-                }
-
-            } catch (Exception ex) {
-
-                // Booking confirmation failed
-                markBookingFailed(booking);
-
-                // Start compensation
-                saga.setCurrentStep(
-                        SagaStep.COMPENSATING
-                );
-
-                saga.setStatus(
-                        SagaStatus.IN_PROGRESS
-                );
-
-                saga.setCompensationType(
-                        CompensationType.BOOKING_FAILED_AFTER_PAYMENT
-                );
-
-                saga.setLastError(
-                        ex.getMessage()
-                );
-
-                saga.setUpdatedAt(
-                        OffsetDateTime.now()
-                );
-
-                sagaInstanceRepository.save(saga);
-
-                // Try compensation immediately
-                compensateAfterBookingFailure(
-                        saga,
-                        booking,
-                        bookingSeats
-                );
-
-            return;
             }
 
-// STEP 7 - SAGA COMPLETED
+        } catch (Exception ex) {
 
+            // Booking confirmation failed
+            markBookingFailed(booking);
+
+            // Start compensation
             saga.setCurrentStep(
-                    SagaStep.COMPLETED
+                    SagaStep.COMPENSATING
             );
 
             saga.setStatus(
-                    SagaStatus.COMPLETED
+                    SagaStatus.IN_PROGRESS
             );
 
-            saga.setCompletedAt(
-                    OffsetDateTime.now()
+            saga.setCompensationType(
+                    CompensationType.BOOKING_FAILED_AFTER_PAYMENT
+            );
+
+            saga.setLastError(
+                    ex.getMessage()
             );
 
             saga.setUpdatedAt(
@@ -768,6 +1141,36 @@ public class BookingSagaOrchestratorImpl
             );
 
             sagaInstanceRepository.save(saga);
+
+            // Try compensation immediately
+            compensateAfterBookingFailure(
+                    saga,
+                    booking,
+                    bookingSeats
+            );
+
+            return;
+        }
+
+// STEP 7 - SAGA COMPLETED
+
+        saga.setCurrentStep(
+                SagaStep.COMPLETED
+        );
+
+        saga.setStatus(
+                SagaStatus.COMPLETED
+        );
+
+        saga.setCompletedAt(
+                OffsetDateTime.now()
+        );
+
+        saga.setUpdatedAt(
+                OffsetDateTime.now()
+        );
+
+        sagaInstanceRepository.save(saga);
     }
 
 
@@ -782,7 +1185,6 @@ public class BookingSagaOrchestratorImpl
                 "BEFORE PAYMENT_FAILED -> " +
                         saga.getCurrentStep()
         );
-
 
 
         // STEP - PAYMENT FAILED
@@ -874,7 +1276,7 @@ public class BookingSagaOrchestratorImpl
         }
     }
 
-// COMPENSATE / RECOVER SAGA
+    // COMPENSATE / RECOVER SAGA
     @Override
     @Transactional
     public void retryCompensation(UUID sagaId) {
@@ -1218,7 +1620,6 @@ public class BookingSagaOrchestratorImpl
     }
 
 
-
     private void compensateAfterBookingFailure(
             SagaInstance saga,
             Booking booking,
@@ -1227,76 +1628,49 @@ public class BookingSagaOrchestratorImpl
         try {
             // 1. RELEASE SEATS
 
-            for (BookingSeat bookingSeat : bookingSeats) {
+//            for (BookingSeat bookingSeat : bookingSeats) {
+//
+//                inventoryClient.releaseConfirmedSeat(
+//                        bookingSeat.getShowSeatId(),
+//                        saga.getBookingId()
+//                );
+//            }
 
-                inventoryClient.releaseConfirmedSeat(
-                        bookingSeat.getShowSeatId(),
-                        saga.getBookingId()
-                );
-            }
+            List<Long> showSeatIds =
+                    bookingSeats.stream()
+                            .map(BookingSeat::getShowSeatId)
+                            .toList();
+
+            ReleaseSeatsRequestedEvent event =
+                    ReleaseSeatsRequestedEvent.builder()
+                            .eventId(UUID.randomUUID())
+                            .sagaId(saga.getSagaId())
+                            .bookingId(saga.getBookingId())
+                            .showSeatIds(showSeatIds)
+                            .occurredAt(OffsetDateTime.now())
+                            .build();
+
+            OutboxEvent outboxEvent =
+                    OutboxEvent.builder()
+                            .eventId(event.getEventId())
+                            .aggregateType("RELEASE_SEATS_REQUESTED")
+                            .eventType("RELEASE_SEATS_REQUESTED")
+                            .aggregateId(
+                                    event.getBookingId()
+                            )
+                            .payload(
+                                    objectMapper.valueToTree(event)
+                            )
+                            .status(OutboxStatus.PENDING)
+                            .retryCount(0)
+                            .createdAt(OffsetDateTime.now())
+                            .build();
+
+            outboxEventRepository.save(outboxEvent);
+
+            System.out.println("out box event for relase seat is called");
 
             // 2. REFUND PAYMENT
-
-            RefundResponse refundResponse =
-                    paymentService.refundPayment(
-                            booking.getBookingId()
-                    );
-
-
-            if (refundResponse.getStatus() == RefundStatus.PENDING) {
-
-                saga.setCurrentStep(
-                        SagaStep.REFUND_PENDING
-                );
-
-                saga.setStatus(
-                        SagaStatus.IN_PROGRESS
-                );
-
-                saga.setLastError(
-                        "Refund pending. Waiting for retry."
-                );
-
-                saga.setUpdatedAt(
-                        OffsetDateTime.now()
-                );
-
-                sagaInstanceRepository.save(saga);
-
-                return;
-            }
-
-            if (refundResponse.getStatus() != RefundStatus.SUCCESS) {
-
-                throw new IllegalStateException(
-                        "Refund failed"
-                );
-            }
-
-            // 3. CANCEL BOOKING
-
-            Booking freshBooking =
-                    bookingRepository.findById(
-                            booking.getBookingId()
-                    ).orElseThrow(() ->
-                            new BookingNotFoundException(
-                                    booking.getBookingId()
-                            )
-                    );
-
-            freshBooking.setStatus(
-                    BookingStatus.CANCELLED
-            );
-
-            freshBooking.setUpdatedAt(
-                    OffsetDateTime.now()
-            );
-
-            bookingRepository.save(freshBooking);
-
-            // 4. COMPENSATION COMPLETED
-
-            markSagaCompensationCompleted(saga);
 
 
         } catch (Exception ex) {
@@ -1309,6 +1683,7 @@ public class BookingSagaOrchestratorImpl
             throw ex;
         }
     }
+
 
 
     // RELEASE ALL SEATS
