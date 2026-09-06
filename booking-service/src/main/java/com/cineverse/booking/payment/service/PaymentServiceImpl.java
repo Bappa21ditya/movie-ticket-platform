@@ -55,6 +55,8 @@ public class PaymentServiceImpl implements PaymentService {
                     return paymentRepository.save(newPayment);
                 });
 
+
+        System.out.println("payment method in requesrt ...."+request.getPaymentMethod());
         // TEST PAYMENT FAILURE
         if (request.getPaymentMethod() == PaymentMethod.UPI) {
 
@@ -142,15 +144,7 @@ public class PaymentServiceImpl implements PaymentService {
                         )
                 );
 
-        // 2. Payment must have succeeded
-        if (payment.getStatus() != PaymentStatus.SUCCESS) {
-            throw new IllegalStateException(
-                    "Cannot refund payment with status: "
-                            + payment.getStatus()
-            );
-        }
-
-        // 3. Idempotency check
+        // 2. FIRST check whether refund already exists
         Optional<Refund> existingRefund =
                 refundRepository.findByPaymentId(payment.getPaymentId());
 
@@ -158,12 +152,42 @@ public class PaymentServiceImpl implements PaymentService {
 
             Refund refund = existingRefund.get();
 
+            System.out.println(
+                    "===== EXISTING REFUND FOUND ====="
+            );
+
+            System.out.println(
+                    "Refund ID: " + refund.getRefundId()
+            );
+
+            System.out.println(
+                    "Refund Status: " + refund.getStatus()
+            );
+
+            /*
+             * Idempotency:
+             *
+             * SUCCESS -> return SUCCESS
+             * PENDING -> return PENDING
+             *
+             * Do NOT create another refund.
+             */
             return RefundResponse.builder()
                     .refundId(refund.getRefundId())
                     .bookingId(refund.getBookingId())
                     .amount(refund.getAmount())
                     .status(refund.getStatus())
                     .build();
+        }
+
+        // 3. Only a payment that has not already been refunded
+        //    can create a new refund.
+        if (payment.getStatus() != PaymentStatus.SUCCESS) {
+
+            throw new IllegalStateException(
+                    "Cannot refund payment with status: "
+                            + payment.getStatus()
+            );
         }
 
         // 4. Create refund
@@ -179,11 +203,27 @@ public class PaymentServiceImpl implements PaymentService {
 
         refund = refundRepository.save(refund);
 
-        // 5. Update payment status
+        // 5. Mark payment as REFUNDED
         payment.setStatus(PaymentStatus.REFUNDED);
         payment.setUpdatedAt(OffsetDateTime.now());
 
         paymentRepository.save(payment);
+
+        System.out.println(
+                "===== REFUND CREATED ====="
+        );
+
+        System.out.println(
+                "Refund ID: " + refund.getRefundId()
+        );
+
+        System.out.println(
+                "Booking ID: " + bookingId
+        );
+
+        System.out.println(
+                "Refund Status: " + refund.getStatus()
+        );
 
         return RefundResponse.builder()
                 .refundId(refund.getRefundId())
@@ -228,9 +268,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .build();
         }
 
-        // ==========================================
         // TEST 4 - SIMULATE REFUND SUCCESS
-        // ==========================================
 
         refund.setStatus(RefundStatus.SUCCESS);
         refund.setUpdatedAt(OffsetDateTime.now());

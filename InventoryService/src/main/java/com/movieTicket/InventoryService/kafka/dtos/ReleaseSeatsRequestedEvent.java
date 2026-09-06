@@ -1,5 +1,6 @@
 package com.movieTicket.InventoryService.kafka.dtos;
 
+import com.movieTicket.InventoryService.enums.CompensationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,6 +15,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class ReleaseSeatsRequestedEvent {
+
     private UUID eventId;
 
     private UUID sagaId;
@@ -21,6 +23,8 @@ public class ReleaseSeatsRequestedEvent {
     private UUID bookingId;
 
     private List<Long> showSeatIds;
+
+    private CompensationType compensationType;
 
     private OffsetDateTime occurredAt;
 }

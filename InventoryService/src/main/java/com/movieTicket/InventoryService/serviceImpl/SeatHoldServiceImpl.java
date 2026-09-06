@@ -151,14 +151,29 @@ public class SeatHoldServiceImpl implements SeatHoldService {
                                 "Seat hold not found"
                         ));
 
+
+        //IDEMPOTENCY
+        if (hold.getStatus() == HoldStatus.RELEASED) {
+
+            System.out.println(
+                    "Seat already released. ShowSeat ID = "
+                            + showSeatId
+            );
+
+            return;
+        }
+
         if (hold.getStatus() != HoldStatus.ACTIVE) {
             throw new IllegalStateException(
                     "Seat hold is not active"
             );
         }
 
+
+
+
         // Release inventory seat
-       // int updated =
+        int updated =
                 showSeatRepository.releaseSeat(showSeatId);
 
         /*
@@ -175,20 +190,31 @@ public class SeatHoldServiceImpl implements SeatHoldService {
 
         seatHoldRepository.save(hold);
 
-        // Release the inventory seat
-//        boolean released =
-//                releaseSeat(showSeatId);
-//
-//        if (!released) {
-//            throw new IllegalStateException(
-//                    "Unable to release seat"
-//            );
-//        }
-//
-//        // Release the hold
-//        hold.setStatus(HoldStatus.RELEASED);
-//
-//        seatHoldRepository.save(hold);
+        if (updated == 0) {
+
+            System.out.println(
+                    "ShowSeat was already AVAILABLE. "
+                            + "ShowSeat ID = "
+                            + showSeatId
+            );
+        }
+
+        // RELEASE HOLD
+
+        hold.setStatus(
+                HoldStatus.RELEASED
+        );
+
+        seatHoldRepository.save(hold);
+
+
+        System.out.println(
+                "Held seat released successfully. "
+                        + "ShowSeat ID = "
+                        + showSeatId
+                        + ", Booking ID = "
+                        + bookingId
+        );
     }
 
     @Override
@@ -329,80 +355,4 @@ public class SeatHoldServiceImpl implements SeatHoldService {
         seatHoldRepository.save(hold);
     }
 }
-//@Service
-//@RequiredArgsConstructor
-//@Transactional
-//public class SeatHoldServiceImpl  implements SeatHoldService {
-//
-//    private final SeatHoldRepository seatHoldRepository;
-//    private final SeatHoldMapper seatHoldMapper;
-//    private final ShowSeatRepository showSeatRepository;
-//
-//
-//    // pressimstic lock
-//    @Override
-//    public SeatHoldResponse createHold(
-//            CreateSeatHoldRequest request) {
-//
-////        ShowSeat showSeat = showSeatRepository.findById(request.getShowSeatId())
-////                .orElseThrow(() ->
-////                        new ResourceNotFoundException(
-////                                "Show seat not found: " + request.getShowSeatId()));
-//
-//        ShowSeat showSeat = showSeatRepository
-//                .findByIdForUpdate(request.getShowSeatId())
-//                .orElseThrow(() ->
-//                        new ResourceNotFoundException(
-//                                "Show seat not found"));
-//
-//        if (showSeat.getStatus() != SeatStatus.AVAILABLE) {
-//            throw new SeatUnavailableException(
-//                    "Seat is not available");
-//        }
-//
-//        showSeat.setStatus(SeatStatus.HELD);
-//
-//        showSeatRepository.save(showSeat);
-//
-//        SeatHold hold = seatHoldMapper.toEntity(request);
-//
-//        SeatHold savedHold =
-//                seatHoldRepository.save(hold);
-//
-//        return seatHoldMapper.toResponse(savedHold);
-//    }
-//
-//    @Override
-//    @Transactional(readOnly = true)
-//    public SeatHoldResponse getHold(Long holdId) {
-//
-//        SeatHold hold = seatHoldRepository.findById(holdId)
-//                .orElseThrow(() ->
-//                        new ResourceNotFoundException(
-//                                "SeatHold not found : " + holdId));
-//
-//        return seatHoldMapper.toResponse(hold);
-//    }
-//
-//    @Override
-//    @Transactional(readOnly = true)
-//    public List<SeatHoldResponse> getHoldsByBooking(
-//            Long bookingId) {
-//
-//        return seatHoldRepository.findByBookingId(bookingId)
-//                .stream()
-//                .map(seatHoldMapper::toResponse)
-//                .toList();
-//    }
-//
-//    @Override
-//    @Transactional(readOnly = true)
-//    public List<SeatHoldResponse> getHoldsByUser(
-//            Long userId) {
-//
-//        return seatHoldRepository.findByUserId(userId)
-//                .stream()
-//                .map(seatHoldMapper::toResponse)
-//                .toList();
-//    }
-//}
+

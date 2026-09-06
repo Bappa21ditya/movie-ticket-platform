@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 
+import com.cineverse.booking.payment.enums.CompensationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,5 +21,6 @@ public class SeatsReleasedEvent {
     private UUID sagaId;
     private UUID bookingId;
     private List<Long> showSeatIds;
+    private CompensationType compensationType;
     private OffsetDateTime occurredAt;
 }

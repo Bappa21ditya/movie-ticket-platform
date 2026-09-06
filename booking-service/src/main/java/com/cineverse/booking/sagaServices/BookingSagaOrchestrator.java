@@ -1,10 +1,11 @@
 package com.cineverse.booking.sagaServices;
 
-import com.cineverse.booking.kafka.dtos.PaymentSucceededEvent;
-import com.cineverse.booking.kafka.dtos.SeatHeldEvent;
-import com.cineverse.booking.kafka.dtos.SeatsConfirmedEvent;
-import com.cineverse.booking.kafka.dtos.SeatsReleasedEvent;
+import com.cineverse.booking.entity.Booking;
+import com.cineverse.booking.entity.BookingSeat;
+import com.cineverse.booking.kafka.dtos.*;
+import com.cineverse.booking.saga.SagaInstance;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface BookingSagaOrchestrator {
@@ -20,4 +21,10 @@ public interface BookingSagaOrchestrator {
     public void handleSeatsConfirmed(SeatsConfirmedEvent event);
 
     public void handleSeatsReleased(SeatsReleasedEvent event);
+
+    public void processRefund(RefundRequestedEvent event);
+
+     public void handlePaymentFailure(PaymentFailedEvent event);
+
+    void handleRefundSucceeded(RefundSucceededEvent event);
 }

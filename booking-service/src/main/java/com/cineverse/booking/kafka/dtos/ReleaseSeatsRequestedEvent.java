@@ -1,6 +1,7 @@
 package com.cineverse.booking.kafka.dtos;
 
 
+import com.cineverse.booking.payment.enums.CompensationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,4 +22,5 @@ public class ReleaseSeatsRequestedEvent {
     private UUID bookingId;
     private List<Long> showSeatIds;
     private OffsetDateTime occurredAt;
+    private CompensationType  compensationType;
 }

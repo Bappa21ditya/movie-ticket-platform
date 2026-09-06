@@ -1,40 +1,38 @@
 package com.cineverse.booking.kafka.consumer;
 
-import com.cineverse.booking.kafka.dtos.SeatsConfirmedEvent;
-import com.cineverse.booking.kafka.dtos.SeatsReleasedEvent;
+import com.cineverse.booking.kafka.dtos.PaymentFailedEvent;
+import com.cineverse.booking.kafka.dtos.PaymentSucceededEvent;
 import com.cineverse.booking.sagaServices.BookingSagaOrchestrator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+
 @Component
 @RequiredArgsConstructor
-public class SeatsReleasedConsumer {
-
-    private final BookingSagaOrchestrator bookingSagaOrchestrator;
+public class PaymentFailedConsumer {
     private final ObjectMapper objectMapper;
 
+    private final BookingSagaOrchestrator bookingSagaOrchestrator;
+
     @KafkaListener(
-            topics = "inventory.seats-released",
-            groupId = "booking-seats-released-group-v1"
+            topics = "booking.payment.failed",
+            groupId = "booking-payment-result-group"
     )
     public void consume(String message) {
 
+        System.out.println(
+                "========== PAYMENT_FAILED RECEIVED =========="
+        );
+
+        System.out.println("Payload = " + message);
+
         try {
 
-            System.out.println(
-                    "========== SEATS RELEASED EVENT RECEIVED =========="
-            );
-
-            System.out.println(
-                    "RAW MESSAGE = " + message
-            );
-
-            SeatsReleasedEvent event =
+            PaymentFailedEvent event =
                     objectMapper.readValue(
                             message,
-                            SeatsReleasedEvent.class
+                            PaymentFailedEvent.class
                     );
 
             System.out.println(
@@ -50,22 +48,26 @@ public class SeatsReleasedConsumer {
             );
 
             System.out.println(
-                    "Show Seats = " + event.getShowSeatIds()
+                    "Payment ID = " + event.getPaymentId()
             );
 
-            bookingSagaOrchestrator.handleSeatsReleased(event);
-
-        } catch (Exception e) {
+            bookingSagaOrchestrator.handlePaymentFailure(event);
 
             System.out.println(
-                    "FAILED TO PROCESS SEATS_RELEASED EVENT"
+                    "PAYMENT_FAILURE HANDLED"
             );
 
-            e.printStackTrace();
+        } catch (Exception ex) {
+
+            System.err.println(
+                    "FAILED TO PROCESS PAYMENT_FAILED"
+            );
+
+            ex.printStackTrace();
 
             throw new RuntimeException(
-                    "Failed to process SEATS_RELEASED event",
-                    e
+                    "Payment failed event processing failed",
+                    ex
             );
         }
     }

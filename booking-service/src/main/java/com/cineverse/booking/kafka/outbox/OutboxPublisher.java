@@ -123,6 +123,9 @@ public class OutboxPublisher {
             case "PAYMENT_SUCCEEDED" ->
                     "payment.events";
 
+            case "PAYMENT_FAILED" ->
+                    "booking.payment.failed";
+
             case "SEAT_CONFIRM_REQUESTED" ->
                     "booking.seat-confirm";
 
@@ -131,6 +134,18 @@ public class OutboxPublisher {
 
             case "REFUND_REQUESTED" ->
                     "booking.refund-requested";
+
+            case "REFUND_SUCCEEDED" ->
+                    "payment.refund-succeeded";
+
+            case "REFUND_PENDING" ->
+                    "payment.refund-pending";
+
+            case "REFUND_FAILED" ->
+                    "payment.refund-failed";
+
+            case "PAYMENT_FAILED_BEFORE_BOOKING" ->
+                    "booking.payment.failed";
 
 
             default ->

@@ -14,6 +14,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SeatConfirmRequestedEvent {
+
     private UUID eventId;
 
     private UUID sagaId;

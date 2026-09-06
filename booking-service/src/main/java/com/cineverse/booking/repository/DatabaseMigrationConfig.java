@@ -15,9 +15,7 @@ public class DatabaseMigrationConfig {
     public CommandLineRunner migrateDatabaseConstraints() {
         return args -> {
 
-            // ============================================================
             // BOOKING STATUS CONSTRAINT
-            // ============================================================
 
             jdbcTemplate.execute("""
                 ALTER TABLE booking
@@ -38,10 +36,7 @@ public class DatabaseMigrationConfig {
                 )
                 """);
 
-
-            // ============================================================
             // SAGA CURRENT STEP CONSTRAINT
-            // ============================================================
 
             jdbcTemplate.execute("""
                 ALTER TABLE saga_instance

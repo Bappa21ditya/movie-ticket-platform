@@ -50,10 +50,7 @@ public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator 
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
 
-
-    // ============================================================
     // START SAGA
-    // ============================================================
 
     @Override
     @Transactional
@@ -88,10 +85,7 @@ public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator 
 
         System.out.println("Saga saved = " + savedSaga.getSagaId());
 
-
-        // ========================================================
         // STEP 1 - HOLDING SEAT
-        // ========================================================
 
         savedSaga.setCurrentStep(
                 SagaStep.HOLDING_SEAT
@@ -188,14 +182,14 @@ public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator 
 
         // PAYMENT FAILED
 
-        else {
-
-            handlePaymentFailure(
-                    savedSaga,
-                    booking,
-                    bookingSeats
-            );
-        }
+//        else {
+//
+//            handlePaymentFailure(
+//                    savedSaga,
+//                    booking,
+//                    bookingSeats
+//            );
+    //    }
     }
 
     // PAYMENT SUCCESS FLOW
@@ -343,106 +337,107 @@ public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator 
 
     // PAYMENT FAILURE FLOW
 
-    private void handlePaymentFailure(
-            SagaInstance saga,
-            Booking booking,
-            List<BookingSeat> bookingSeats) {
 
-        System.out.println(
-                "BEFORE PAYMENT_FAILED -> " +
-                        saga.getCurrentStep()
-        );
-
-
-
-        // STEP - PAYMENT FAILED
-
-        saga.setCurrentStep(
-                SagaStep.PAYMENT_FAILED
-        );
-
-        saga.setUpdatedAt(
-                OffsetDateTime.now()
-        );
-
-        sagaInstanceRepository.save(saga);
-
-
-        System.out.println(
-                "AFTER PAYMENT_FAILED -> " +
-                        saga.getCurrentStep()
-        );
-        // START COMPENSATION
-
-        saga.setCurrentStep(
-                SagaStep.COMPENSATING
-        );
-
-        saga.setStatus(
-                SagaStatus.IN_PROGRESS
-        );
-
-        saga.setCompensationType(
-                CompensationType.PAYMENT_FAILED
-        );
-
-        saga.setUpdatedAt(
-                OffsetDateTime.now()
-        );
-
-        sagaInstanceRepository.save(saga);
-        System.out.println(
-                "AFTER COMPENSATING -> step=" +
-                        saga.getCurrentStep() +
-                        ", status=" +
-                        saga.getStatus()
-        );
-
-        try {
-
-            // Release seats
-
-            releaseAllSeats(
-                    bookingSeats,
-                    booking.getBookingId()
-            );
-
-
-            // Payment already failed.
-            // Therefore NO REFUND is required.
-
-            booking.setStatus(
-                    BookingStatus.CANCELLED
-            );
-
-            booking.setUpdatedAt(
-                    OffsetDateTime.now()
-            );
-
-            bookingRepository.save(booking);
-
-
-            // Compensation completed
-
-            markSagaCompensationCompleted(saga);
-
-
-        } catch (Exception ex) {
-            System.out.println("=================================");
-            System.out.println("COMPENSATION CATCH REACHED");
-            System.out.println("Saga ID = " + saga.getSagaId());
-            System.out.println("Exception = " + ex.getMessage());
-            System.out.println("=================================");
-
-
-            sagaStateService.markCompensationFailed(
-                    saga.getSagaId(),
-                    ex
-            );
-
-            throw ex;
-        }
-    }
+//    public void handlePaymentFailure(
+//            SagaInstance saga,
+//            Booking booking,
+//            List<BookingSeat> bookingSeats) {
+//
+//        System.out.println(
+//                "BEFORE PAYMENT_FAILED -> " +
+//                        saga.getCurrentStep()
+//        );
+//
+//
+//
+//        // STEP - PAYMENT FAILED
+//
+//        saga.setCurrentStep(
+//                SagaStep.PAYMENT_FAILED
+//        );
+//
+//        saga.setUpdatedAt(
+//                OffsetDateTime.now()
+//        );
+//
+//        sagaInstanceRepository.save(saga);
+//
+//
+//        System.out.println(
+//                "AFTER PAYMENT_FAILED -> " +
+//                        saga.getCurrentStep()
+//        );
+//        // START COMPENSATION
+//
+//        saga.setCurrentStep(
+//                SagaStep.COMPENSATING
+//        );
+//
+//        saga.setStatus(
+//                SagaStatus.IN_PROGRESS
+//        );
+//
+//        saga.setCompensationType(
+//                CompensationType.PAYMENT_FAILED
+//        );
+//
+//        saga.setUpdatedAt(
+//                OffsetDateTime.now()
+//        );
+//
+//        sagaInstanceRepository.save(saga);
+//        System.out.println(
+//                "AFTER COMPENSATING -> step=" +
+//                        saga.getCurrentStep() +
+//                        ", status=" +
+//                        saga.getStatus()
+//        );
+//
+//        try {
+//
+//            // Release seats
+//
+//            releaseAllSeats(
+//                    bookingSeats,
+//                    booking.getBookingId()
+//            );
+//
+//
+//            // Payment already failed.
+//            // Therefore NO REFUND is required.
+//
+//            booking.setStatus(
+//                    BookingStatus.CANCELLED
+//            );
+//
+//            booking.setUpdatedAt(
+//                    OffsetDateTime.now()
+//            );
+//
+//            bookingRepository.save(booking);
+//
+//
+//            // Compensation completed
+//
+//            markSagaCompensationCompleted(saga);
+//
+//
+//        } catch (Exception ex) {
+//            System.out.println("=================================");
+//            System.out.println("COMPENSATION CATCH REACHED");
+//            System.out.println("Saga ID = " + saga.getSagaId());
+//            System.out.println("Exception = " + ex.getMessage());
+//            System.out.println("=================================");
+//
+//
+//            sagaStateService.markCompensationFailed(
+//                    saga.getSagaId(),
+//                    ex
+//            );
+//
+//            throw ex;
+//        }
+//    }
 
     // COMPENSATE / RECOVER SAGA
     @Override
@@ -803,6 +798,21 @@ public class BookingSagaOrchestratorImplRest implements BookingSagaOrchestrator 
 
     @Override
     public void handleSeatsReleased(SeatsReleasedEvent event) {
+
+    }
+
+    @Override
+    public void processRefund(RefundRequestedEvent event) {
+
+    }
+
+    @Override
+    public void handlePaymentFailure(PaymentFailedEvent event) {
+
+    }
+
+    @Override
+    public void handleRefundSucceeded(RefundSucceededEvent event) {
 
     }
 

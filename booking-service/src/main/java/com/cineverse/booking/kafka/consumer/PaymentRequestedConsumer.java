@@ -1,6 +1,7 @@
 package com.cineverse.booking.kafka.consumer;
 
 
+import com.cineverse.booking.kafka.dtos.PaymentFailedEvent;
 import com.cineverse.booking.kafka.dtos.PaymentRequestedEvent;
 import com.cineverse.booking.kafka.dtos.PaymentSucceededEvent;
 import com.cineverse.booking.kafka.outbox.OutboxEvent;
@@ -34,12 +35,10 @@ public class PaymentRequestedConsumer {
     public void consume(String message) {
 
         System.out.println(
-                " PAYMENT REQUESTED RECEIVED"
+                "========== PAYMENT REQUESTED RECEIVED =========="
         );
 
-        System.out.println(
-                "Payload = " + message
-        );
+        System.out.println("Payload = " + message);
 
         try {
 
@@ -49,81 +48,33 @@ public class PaymentRequestedConsumer {
                             PaymentRequestedEvent.class
                     );
 
-            System.out.println(
-                    "Saga ID = " + event.getSagaId()
-            );
-
-            System.out.println(
-                    "Booking ID = " + event.getBookingId()
-            );
-
-            System.out.println(
-                    "Amount = " + event.getAmount()
-            );
-
-            System.out.println(
-                    "Payment Method = "
-                            + event.getPaymentMethod()
-            );
+            System.out.println("Event ID = " + event.getEventId());
+            System.out.println("Saga ID = " + event.getSagaId());
+            System.out.println("Booking ID = " + event.getBookingId());
 
             PaymentResponse paymentResponse =
                     paymentService.createPayment(
                             CreatePaymentRequest.builder()
-                                    .bookingId(
-                                            event.getBookingId()
-                                    )
-                                    .amount(
-                                            event.getAmount()
-                                    )
-                                    .paymentMethod(
-                                            event.getPaymentMethod()
-                                    )
+                                    .bookingId(event.getBookingId())
+                                    .amount(event.getAmount())
+                                    .paymentMethod(event.getPaymentMethod())
                                     .build()
                     );
 
-            System.out.println(
-                    "PAYMENT RESULT = "
-                            + paymentResponse.getStatus()
-            );
-
             if (paymentResponse.getStatus() == PaymentStatus.SUCCESS) {
 
-                PaymentSucceededEvent successEvent =
-                        PaymentSucceededEvent.builder()
-                                .eventId(UUID.randomUUID())
-                                .sagaId(event.getSagaId())
-                                .bookingId(event.getBookingId())
-                                .userId(event.getUserId())
-                                .paymentId(paymentResponse.getPaymentId())
-                                .amount(paymentResponse.getAmount())
-                                .occurredAt(OffsetDateTime.now())
-                                .build();
+                handlePaymentSuccess(
+                        event,
+                        paymentResponse
+                );
 
-                JsonNode payload =
-                        objectMapper.valueToTree(successEvent);
+            } else {
 
-                OutboxEvent outboxEvent =
-                        OutboxEvent.builder()
-                                .eventId(successEvent.getEventId())
-                                .aggregateId(paymentResponse.getBookingId())
-                                .aggregateType("PAYMENT")
-                                .eventType("PAYMENT_SUCCEEDED")
-                                .payload(payload)
-                                .status(OutboxStatus.PENDING)
-                                .retryCount(0)
-                                .createdAt(OffsetDateTime.now())
-                                .build();
-
-                outboxEventRepository.saveAndFlush(outboxEvent);
-
-                System.out.println(
-                        "PAYMENT_SUCCEEDED OUTBOX SAVED = "
-                                + successEvent.getEventId()
+                handlePaymentFailure(
+                        event,
+                        paymentResponse
                 );
             }
-
-            // next: publish PAYMENT_SUCCEEDED
-            // or PAYMENT_FAILED
 
         } catch (Exception ex) {
 
@@ -134,9 +85,87 @@ public class PaymentRequestedConsumer {
             ex.printStackTrace();
 
             throw new RuntimeException(
-                    "Payment event processing failed",
+                    "Payment request processing failed",
                     ex
             );
         }
+    }
+
+    private void handlePaymentSuccess(
+            PaymentRequestedEvent event,
+            PaymentResponse paymentResponse
+    ) {
+
+        PaymentSucceededEvent successEvent =
+                PaymentSucceededEvent.builder()
+                        .eventId(UUID.randomUUID())
+                        .sagaId(event.getSagaId())
+                        .bookingId(event.getBookingId())
+                        .userId(event.getUserId())
+                        .paymentId(paymentResponse.getPaymentId())
+                        .amount(paymentResponse.getAmount())
+                        .occurredAt(OffsetDateTime.now())
+                        .build();
+
+        JsonNode payload =
+                objectMapper.valueToTree(successEvent);
+
+        OutboxEvent outboxEvent =
+                OutboxEvent.builder()
+                        .eventId(successEvent.getEventId())
+                        .aggregateId(paymentResponse.getBookingId())
+                        .aggregateType("PAYMENT")
+                        .eventType("PAYMENT_SUCCEEDED")
+                        .payload(payload)
+                        .status(OutboxStatus.PENDING)
+                        .retryCount(0)
+                        .createdAt(OffsetDateTime.now())
+                        .build();
+
+        outboxEventRepository.saveAndFlush(outboxEvent);
+
+        System.out.println(
+                "PAYMENT_SUCCEEDED OUTBOX SAVED = "
+                        + successEvent.getEventId()
+        );
+    }
+
+    private void handlePaymentFailure(
+            PaymentRequestedEvent event,
+            PaymentResponse paymentResponse
+    ) {
+
+        PaymentFailedEvent failedEvent =
+                PaymentFailedEvent.builder()
+                        .eventId(UUID.randomUUID())
+                        .sagaId(event.getSagaId())
+                        .bookingId(event.getBookingId())
+                        .userId(event.getUserId())
+                        .paymentId(paymentResponse.getPaymentId())
+                        .amount(paymentResponse.getAmount())
+                        .occurredAt(OffsetDateTime.now())
+                        .build();
+
+        JsonNode payload =
+                objectMapper.valueToTree(failedEvent);
+
+        OutboxEvent outboxEvent =
+                OutboxEvent.builder()
+                        .eventId(failedEvent.getEventId())
+                        .aggregateId(paymentResponse.getBookingId())
+                        .aggregateType("PAYMENT")
+                        .eventType("PAYMENT_FAILED")
+                        .payload(payload)
+                        .status(OutboxStatus.PENDING)
+                        .retryCount(0)
+                        .createdAt(OffsetDateTime.now())
+                        .build();
+
+        outboxEventRepository.saveAndFlush(outboxEvent);
+
+        System.out.println(
+                "PAYMENT_FAILED OUTBOX SAVED = "
+                        + failedEvent.getEventId()
+        );
     }
 }
