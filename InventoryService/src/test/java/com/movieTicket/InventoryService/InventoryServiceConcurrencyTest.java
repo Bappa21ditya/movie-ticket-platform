@@ -6,8 +6,10 @@ import com.movieTicket.InventoryService.exceptions.SeatUnavailableException;
 import com.movieTicket.InventoryService.services.SeatHoldService;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,17 +41,17 @@ public class InventoryServiceConcurrencyTest {
         CreateSeatHoldRequest requestA = new CreateSeatHoldRequest();
 
         requestA.setShowSeatId(1L);
-        requestA.setBookingId(1001L);
-        requestA.setUserId(101L);
-        requestA.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+        requestA.setBookingId(UUID.randomUUID());
+        requestA.setUserId(UUID.randomUUID());
+        requestA.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
 
 
         CreateSeatHoldRequest requestB = new CreateSeatHoldRequest();
 
         requestB.setShowSeatId(1L);
-        requestB.setBookingId(1002L);
-        requestB.setUserId(102L);
-        requestB.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+        requestB.setBookingId(UUID.randomUUID());
+        requestB.setUserId(UUID.randomUUID());
+        requestB.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
 
         ExecutorService executor =
                 Executors.newFixedThreadPool(2);
@@ -164,7 +166,7 @@ public class InventoryServiceConcurrencyTest {
         // Create 1000 concurrent requests
         for (int i = 0; i < numberOfUsers; i++) {
 
-            long bookingId = 1000L + i;
+            long bookingId =  + i;
             long userId = 100L + i;
 
             CreateSeatHoldRequest request =
@@ -173,11 +175,9 @@ public class InventoryServiceConcurrencyTest {
             // ALL users try to hold SAME ShowSeat
             request.setShowSeatId(1L);
 
-            request.setBookingId(bookingId);
-            request.setUserId(userId);
-            request.setExpiresAt(
-                    LocalDateTime.now().plusMinutes(5)
-            );
+            request.setBookingId(UUID.randomUUID());
+            request.setUserId(UUID.randomUUID());
+            request.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
 
             Future<SeatHoldResponse> future =
                     executor.submit(() -> {
@@ -295,11 +295,9 @@ void shouldTestConcurrentSeatHoldFor10000Users() throws Exception {
         // ALL users try to hold SAME ShowSeat
         request.setShowSeatId(1L);
 
-        request.setBookingId(bookingId);
-        request.setUserId(userId);
-        request.setExpiresAt(
-                LocalDateTime.now().plusMinutes(5)
-        );
+        request.setBookingId(UUID.randomUUID());
+        request.setUserId(UUID.randomUUID());
+        request.setExpiresAt(OffsetDateTime.now().plusMinutes(5));
 
         Future<SeatHoldResponse> future =
                 executor.submit(() -> {
