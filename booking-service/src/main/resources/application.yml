@@ -1,44 +1,13 @@
-server:
-  port: 8083
-
 spring:
   application:
     name: booking-service
 
-
-  datasource:
-    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=booking_db
-    username: postgres
-    password: root
-    driver-class-name: org.postgresql.Driver
-
+#  profiles:
+#    active: dev
 
   jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
     open-in-view: false
-    properties:
-      hibernate:
-        format_sql: true
-
-
-
-  kafka:
-    bootstrap-servers: localhost:9092
-
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-
 
 inventory:
   service:
     url: http://localhost:8081
-
-

@@ -1,6 +1,5 @@
 package com.cineverse.booking.sagaServices;
 
-import com.cineverse.booking.dto.sagaClient.CreateSeatHoldRequest;
 import com.cineverse.booking.entity.Booking;
 import com.cineverse.booking.entity.BookingSeat;
 import com.cineverse.booking.enums.BookingStatus;
@@ -9,29 +8,23 @@ import com.cineverse.booking.kafka.dtos.*;
 import com.cineverse.booking.kafka.outbox.OutboxEvent;
 import com.cineverse.booking.kafka.outbox.OutboxEventRepository;
 import com.cineverse.booking.kafka.outbox.OutboxStatus;
-import com.cineverse.booking.payment.dto.CreatePaymentRequest;
-import com.cineverse.booking.payment.dto.PaymentResponse;
 import com.cineverse.booking.payment.dto.RefundResponse;
 import com.cineverse.booking.payment.entity.Refund;
 import com.cineverse.booking.payment.enums.CompensationType;
 import com.cineverse.booking.payment.enums.PaymentMethod;
-import com.cineverse.booking.payment.enums.PaymentStatus;
 import com.cineverse.booking.payment.enums.RefundStatus;
 import com.cineverse.booking.payment.repos.RefundRepository;
 import com.cineverse.booking.payment.service.PaymentService;
 import com.cineverse.booking.repository.BookingRepository;
 import com.cineverse.booking.repository.BookingSeatRepository;
-import com.cineverse.booking.restClient.InventoryClient;
 import com.cineverse.booking.saga.SagaInstance;
 import com.cineverse.booking.saga.SagaInstanceRepository;
 import com.cineverse.booking.saga.SagaStatus;
 import com.cineverse.booking.saga.SagaStep;
 import com.cineverse.booking.saga.SagaType;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,7 +43,6 @@ public class BookingSagaOrchestratorImpl
     private final SagaInstanceRepository sagaInstanceRepository;
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
-    private final InventoryClient inventoryClient;
     private final PaymentService paymentService;
     private final SagaStateService sagaStateService;
     private final OutboxEventRepository outboxEventRepository;
@@ -1627,7 +1619,7 @@ public class BookingSagaOrchestratorImpl
 
             outboxEventRepository.save(outboxEvent);
 
-            System.out.println("out box event for relase seat is called");
+            System.out.println("out box event for release seat is called");
 
             // 2. REFUND PAYMENT
 
@@ -1646,32 +1638,6 @@ public class BookingSagaOrchestratorImpl
         }
     }
 
-
-
-    // RELEASE ALL SEATS
-
-    private void releaseAllSeats(
-            List<BookingSeat> bookingSeats,
-            UUID bookingId) {
-
-        // only  for test make it true
-        boolean simulateCompensationFailure = false;
-
-        if (simulateCompensationFailure) {
-            throw new RuntimeException(
-                    "SIMULATED COMPENSATION FAILURE"
-            );
-        }
-
-        for (BookingSeat bookingSeat : bookingSeats) {
-
-            inventoryClient.releaseSeat(
-                    bookingSeat.getShowSeatId(),
-                    bookingId
-            );
-
-        }
-    }
 
     // MARK BOOKING FAILED
 
@@ -1709,7 +1675,7 @@ public class BookingSagaOrchestratorImpl
          * Business operation failed,
          * but compensation succeeded.
          *
-         * Therefore Saga is finished.
+         * Therefore, Saga is finished.
          */
 
         saga.setCurrentStep(

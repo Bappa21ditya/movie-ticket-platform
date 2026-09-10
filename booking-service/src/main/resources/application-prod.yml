@@ -1,0 +1,46 @@
+server:
+  port: 8083
+
+spring:
+  datasource:
+    url: jdbc:postgresql://cineverse-postgres:5432/postgres?currentSchema=booking_db
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      connection-timeout: 1000
+      maximum-pool-size: 10
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    show-sql: true
+    open-in-view: false
+
+    properties:
+      hibernate:
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: kafka:9092
+
+    consumer:
+      group-id: booking-service-group
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+inventory:
+  service:
+    url: http://inventory-service:8081
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    com.cineverse.booking: INFO

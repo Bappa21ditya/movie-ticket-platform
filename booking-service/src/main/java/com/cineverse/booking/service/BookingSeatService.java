@@ -3,9 +3,11 @@ package com.cineverse.booking.service;
 import com.cineverse.booking.dto.CreateBookingSeatRequest;
 import com.cineverse.booking.dto.UpdateBookingSeatRequest;
 import com.cineverse.booking.dto.BookingSeatResponse;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
+@Service
 public interface BookingSeatService {
     BookingSeatResponse addBookingSeat(
             UUID bookingId,

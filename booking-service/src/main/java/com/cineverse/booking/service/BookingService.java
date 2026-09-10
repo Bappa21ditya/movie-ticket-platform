@@ -1,12 +1,15 @@
 package com.cineverse.booking.service;
 
 
+
+import com.cineverse.booking.dto.BookingResponse;
 import com.cineverse.booking.dto.CreateBookingRequest;
 import com.cineverse.booking.dto.UpdateBookingRequest;
-import com.cineverse.booking.dto.BookingResponse;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
+@Service
 public interface BookingService {
 
     BookingResponse createBooking(
