@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  init.sql: |
+    CREATE SCHEMA IF NOT EXISTS inventory_db;
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cineverse-postgres
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: cineverse-postgres
+
+  template:
+    metadata:
+      labels:
+        app: cineverse-postgres
+
+    spec:
+      containers:
+        - name: postgres
+
+          image: postgres:16
+
+          ports:
+            - containerPort: 5432
+
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+
+            - name: POSTGRES_PASSWORD
+              value: "root"
+
+            - name: POSTGRES_DB
+              value: "postgres"
+
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+
+      volumes:
+        - name: postgres-storage
+          emptyDir: {}
+
+        - name: postgres-init
+          configMap:
+            name: postgres-init
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cineverse-postgres
+
+spec:
+  selector:
+    app: cineverse-postgres
+
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+  type: ClusterIP
