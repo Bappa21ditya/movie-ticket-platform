@@ -5,6 +5,7 @@ metadata:
 data:
   init.sql: |
     CREATE SCHEMA IF NOT EXISTS inventory_db;
+    CREATE SCHEMA IF NOT EXISTS booking_db;
 
 ---
 apiVersion: apps/v1

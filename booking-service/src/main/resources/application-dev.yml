@@ -34,3 +34,24 @@ logging:
   level:
     root: INFO
     com.cineverse.booking: DEBUG
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+  endpoint:
+    health:
+      show-details: always
+
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: CineVerse Inventory Service
+    version: 1.0.0
+    description: Movie ticket inventory and seat-hold service

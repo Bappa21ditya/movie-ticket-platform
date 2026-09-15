@@ -21,6 +21,7 @@ spring:
 
     properties:
       hibernate:
+        default_schema: booking_db
         format_sql: true
 
   kafka:
@@ -44,3 +45,23 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
     com.cineverse.booking: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+  endpoint:
+    health:
+      show-details: always
+
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: CineVerse Inventory Service
+    version: 1.0.0
+    description: Movie ticket inventory and seat-hold service
