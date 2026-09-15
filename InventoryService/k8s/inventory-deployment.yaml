@@ -29,6 +29,14 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
 
 ---
 apiVersion: v1
